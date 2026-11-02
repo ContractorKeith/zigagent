@@ -161,6 +161,31 @@ class RunnerTests(unittest.TestCase):
                 if scratch.exists():
                     shutil.rmtree(scratch)
 
+    def test_optimized_python_rejects_incorrect_edit(self):
+        with tempfile.TemporaryDirectory(prefix="zigagent-optimized-check-") as temp:
+            root = Path(temp)
+            for name in ('scripts/live-check.py', 'scripts/package.py',
+                         'src/cli.zig', 'tests/fake_codex.py'):
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, target)
+            fake = root / 'tests/fake_codex.py'
+            fake.write_text(fake.read_text().replace('return a + b', 'return a * b'))
+            env = dict(os.environ, PYTHONOPTIMIZE='1', PYTHONDONTWRITEBYTECODE='1')
+            result = subprocess.run([sys.executable, str(root / 'scripts/live-check.py'),
+                                     '--test-mode', '--model', 'test-model',
+                                     '--binary', str(BINARY)], env=env,
+                                    capture_output=True, timeout=40)
+            report = json.loads(result.stdout)
+            try:
+                self.assertEqual(result.returncode, 1, report)
+                self.assertTrue(report['file_changed'])
+                self.assertFalse(report['caller_check_passed'])
+                self.assertFalse(report['independent_check_passed'])
+                self.assertFalse(report['passed'])
+            finally:
+                shutil.rmtree(report['scratch'])
+
     def test_runner_failure_preserves_owned_scratch_without_raw_output(self):
         with tempfile.TemporaryDirectory(prefix="zigagent-runner-failure-") as temp:
             fake = Path(temp) / "broken-wrapper"

@@ -18,10 +18,11 @@ BUG = 'def add(a, b):\n    return a - b\n'
 CHECK = '''import runpy
 from pathlib import Path
 module = runpy.run_path("calculator.py")
-assert module["add"](7, 4) == 11
-assert module["add"](-2, 5) == 3
-assert module["add"](0, 0) == 0
-assert Path("calculator.py").read_text() != %r
+for a, b, expected in ((7, 4, 11), (-2, 5, 3), (0, 0, 0)):
+    if module["add"](a, b) != expected:
+        raise SystemExit("incorrect addition")
+if Path("calculator.py").read_text() == %r:
+    raise SystemExit("fixture unchanged")
 print("zigagent-live-check-passed")
 ''' % BUG
 

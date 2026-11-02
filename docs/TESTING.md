@@ -170,8 +170,8 @@ PYTHON
 
 ## M4 tooling
 
-The canonical gate now includes native ReleaseSmall packaging and 11 tooling
-methods (96 Python methods total). Artifact tests recompute checksums when
+The canonical gate now includes native ReleaseSmall packaging and 12 tooling
+methods (97 Python methods total). Artifact tests recompute checksums when
 attacking content, so they exercise content validation beyond checksum mismatch.
 They reject truncated/missing/extra/wrong artifacts, invalid manifests, traversal,
 symlinks, duplicate/missing members, modes, executable format and version.
@@ -200,3 +200,9 @@ fixture Git operations and made the new override test fail before the fix.
 The runner now strips inherited GIT_* values and disables global/system Git
 configuration for its child environment, so only its newly created repo is used.
 The regression passes; it never points at a real user repository.
+
+Review finding #24: Python optimization removed the generated checker's
+assertions, letting multiplication pass as addition. A copied fake backend
+reproduced this false success under PYTHONOPTIMIZE=1. Explicit conditional
+failures now reject the wrong edit in both caller and independent checks,
+regardless of optimization.
