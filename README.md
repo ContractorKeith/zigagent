@@ -2,9 +2,11 @@
 
 A small native Zig CLI being built to supervise an installed Codex for repository fixes.
 
-M0 implements the build, argument validation, result schema, help/version and fake-backend test harness. **Backend execution and login are unimplemented**: a valid `run` or `login` exits 1 with `unimplemented`. No model calls, authentication, caller checks, prompt stdin reading, deadlines or subprocess supervision run yet. M1–M4 deliver those features in [the plan](docs/PLAN.md); this is not a working supervisor release.
+M0 merged via [PR #6](https://github.com/ContractorKeith/zigagent/pull/6). M1 adds one controlled Codex request: bounded prompt input, version/capability/auth preflight, concurrent output draining, JSONL parsing and one result. Codex **0.166.0** and ChatGPT login are required. Interactive login and graceful cancellation hardening are M2; caller checks are M3. `login` and `--check` fail explicitly before a task starts. Release evidence remains M4; see [the plan](docs/PLAN.md).
 
 ## Build and test
+
+On newer macOS SDKs, pinned Zig may need an installed compatible SDK selected for the build process; see [SDK setup](docs/TESTING.md#macos-sdk-compatibility). No system configuration change is needed.
 
 Requires Python 3 for tests/toolchain setup and Zig **0.15.2** for builds. The native binary has no Python dependency.
 
@@ -19,17 +21,22 @@ bash scripts/accept.sh
 
 The installer writes only to `~/.local/share/zigagent-toolchains` (or its explicit directory argument). The gate runs format checking, unit tests, build and compiled-process black-box tests, and is the same entrypoint CI runs on both target hosts. See [testing](docs/TESTING.md).
 
-## M0 CLI
+## Run
 
 ```bash
 ./zig-out/bin/zigagent run --help
 ./zig-out/bin/zigagent login --help
 ./zig-out/bin/zigagent run --model gpt-6.1-sol --json 'Fix the parser'
-# One failed schema-version-1 envelope with error.code="unimplemented"; exit 1.
+# One schema-version-1 result; exit 0 only on completion plus backend exit zero.
+printf '%s' 'Fix the parser' | ./zig-out/bin/zigagent run --model gpt-6.1-sol --json --no-input -
 ```
 
-Run flags, numeric bounds and directory paths are validated before the placeholder failure. `--model` overrides `ZIGAGENT_MODEL`; missing/empty models fail usage. Values are separate arguments, not `--flag=value`. `--` ends run option parsing. Relative workspace and additional-directory paths resolve from the caller's current directory. Invalid arguments exit 2, with one JSON envelope when `--json` is requested, or a plain stderr error. Help/version need no Codex or credentials. Omitted/`-` prompts select the future stdin source without reading it in M0; argument prompts are limited to 1 MiB. Invalid UTF-8 arguments are rejected, preserving valid JSON output. M0 uses the extra temporary error code `unimplemented`; the v1 error contract remains in the unchanged [spec](docs/features/supervisor/SPEC.md).
+`--model` overrides `ZIGAGENT_MODEL`; missing/empty models fail usage. Values are separate arguments, not `--flag=value`. `--` ends run option parsing. Workspace and additional-directory paths resolve from the caller's current directory. Invalid arguments exit 2, with one JSON envelope when requested. Help/version need no backend or credentials.
+
+Omitted/`-` prompts read nonterminal stdin under the preflight deadline, capped at 1 MiB. An argument prompt leaves caller stdin untouched. All prompts reach Codex through a separate stdin pipe; model/path values are literal argv data. Invalid UTF-8 and NUL prompt bytes fail usage. Preflight shares one `--timeout` budget; authenticated execution receives a fresh full budget. Summaries retain the last completed agent message's prefix; diagnostics retain a bounded stderr tail. Truncation flags identify loss; invalid/cut UTF-8 bytes become `?`.
+
+Missing login fails with `authentication_required`; API-key login and unexpected status failures use `authentication_failed`. Run `codex login` separately in M1. The temporary `unimplemented` error remains for `login` and `--check`. [Backend controls and inherited configuration limits](docs/CODEX-BACKEND.md) document the exact invocation and M1 lifecycle limitations.
 
 Subcommand `--help` stops parsing immediately; trailing arguments are ignored, while errors before it still fail. Option values beginning with `--` are treated as missing values: use `./--context` or an absolute path for a directory named `--context`. Every repeated `--add-dir` is validated.
 
-The eventual backend is a separately installed Codex with ChatGPT subscription login. Codex owns the agent loop. The caller supplies OS isolation; working directories and added context paths do not enforce an access boundary. See the [glossary](CONTEXT.md).
+The backend is a separately installed Codex with ChatGPT subscription login. Codex owns the agent loop. The caller supplies OS isolation; working directories and added context paths do not enforce an access boundary. See the [glossary](CONTEXT.md).

@@ -13,7 +13,7 @@ BINARY = ROOT / "zig-out/bin/zigagent"
 
 class CliCase(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="zigagent-m0-")
+        self.temp = tempfile.TemporaryDirectory(prefix="zigagent-m1-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.workspace = self.root / "workspace with spaces"
@@ -24,6 +24,9 @@ class CliCase(unittest.TestCase):
         self.log = self.root / "fake-argv.jsonl"
         self.env = os.environ.copy()
         self.env.pop("ZIGAGENT_MODEL", None)
+        self.env["PATH"] = str(self.root) + os.pathsep + self.env["PATH"]
+        shutil.copyfile(self.fake, self.root / "codex")
+        (self.root / "codex").chmod(0o755)
         self.env["ZIGAGENT_TEST_LOG"] = str(self.log)
         self.env["ZIGAGENT_TEST_SCENARIO"] = "success"
 

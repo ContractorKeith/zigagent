@@ -1,6 +1,7 @@
 const std = @import("std");
 const cli = @import("cli.zig");
 const result = @import("result.zig");
+const backend = @import("backend.zig");
 
 fn writeAll(fd: std.posix.fd_t, bytes: []const u8) !void {
     var offset: usize = 0;
@@ -21,11 +22,15 @@ fn emit(allocator: std.mem.Allocator, value: result.Result, json: bool, exit_cod
         writeAll(std.posix.STDERR_FILENO, ": ") catch std.process.exit(1);
         writeAll(std.posix.STDERR_FILENO, err.message) catch std.process.exit(1);
         writeAll(std.posix.STDERR_FILENO, "\n") catch std.process.exit(1);
+    } else {
+        writeAll(std.posix.STDOUT_FILENO, value.summary) catch std.process.exit(1);
+        writeAll(std.posix.STDOUT_FILENO, "\n") catch std.process.exit(1);
     }
     std.process.exit(exit_code);
 }
 
 pub fn main() void {
+    std.posix.sigaction(std.posix.SIG.PIPE, &.{ .handler = .{ .handler = std.posix.SIG.IGN }, .mask = std.posix.sigemptyset(), .flags = 0 }, null);
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -56,12 +61,16 @@ pub fn main() void {
         value.@"error" = .{ .code = "usage_error", .message = "Workspace and additional context paths must be accessible directories." };
         emit(allocator, value, json, 2);
     };
+    const exit_code = backend.run(allocator, opts, &value) catch blk: {
+        value.@"error" = .{ .code = "backend_failed", .message = "Backend supervision failed; edits are preserved." };
+        break :blk @as(u8, 1);
+    };
     value.elapsed_ms = if (timer) |*t| t.read() / std.time.ns_per_ms else 0;
-    value.@"error" = .{ .code = "unimplemented", .message = "M0 provides CLI validation only; backend execution and login are not implemented." };
-    emit(allocator, value, opts.json, 1);
+    emit(allocator, value, opts.json, exit_code);
 }
 
 test {
     _ = @import("cli.zig");
     _ = @import("result.zig");
+    _ = @import("stream.zig");
 }

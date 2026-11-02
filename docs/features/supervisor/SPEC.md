@@ -99,6 +99,8 @@ Success means the backend emitted a recognized completion and exited zero; when 
 
 Exit codes: 0 completed; 1 agent/backend/protocol/internal failure; 2 usage; 3 missing/incompatible backend or unsupported required capability; 4 authentication failure/required; 5 caller check failure; 124 timeout (including login timeout); 130 SIGINT cancellation; 143 SIGTERM cancellation. JSON errors follow the same envelope when --json was requested, including validation errors, except help/version or an unwritable stdout. Error codes distinguish usage_error, backend_missing, backend_incompatible, backend_capability, authentication_required, authentication_failed, backend_failed, protocol_error, event_too_large, check_failed, timed_out, cancelled and output_closed as applicable. A later milestone may refine codes only with schema/documentation/tests updated together before release.
 
+Intermediate tool attempts can fail during a successful repair (for example a red test before the fix). Their status alone does not override a completed turn with a successful backend exit. The optional caller check, not the history of tool attempts, determines verification.
+
 ### Resource accounting
 
 Retain bounded summaries and tails of stderr/check output; use explicit truncation markers/flags. Drain all streams to avoid pipe deadlocks. The per-event limit is an input bound, not permission to retain every event. Finite execution plus bounded buffers are the guarantee; Codex memory, model context and token cost are not capped by zigagent. Measure wrapper binary size/startup/peak RSS separately from the Codex process tree and derive regression thresholds from reproducible baselines.

@@ -123,12 +123,12 @@ fn directory(path: []const u8) error{Usage}!void {
 }
 
 pub const help =
-    \\zigagent — Codex supervisor (M0 CLI harness)
+    \\zigagent — Codex supervisor (M1 controlled backend)
     \\Usage: zigagent run [options] [PROMPT|-]
     \\       zigagent login [--login-timeout SECONDS] [--no-input]
     \\       zigagent --help
     \\       zigagent --version
-    \\Use run --help or login --help for options. Execution is unimplemented in M0.
+    \\Use run --help or login --help for options. Interactive login and caller checks follow in M2/M3.
     \\
 ;
 pub const run_help =
@@ -146,8 +146,8 @@ pub const run_help =
     \\  --codex PATH             Backend executable (default: codex through PATH)
     \\  --help                   Show this help without a backend
     \\All limits are positive integers. -- ends option parsing; prompt is one argument.
-    \\PROMPT is capped at 1 MiB. - or omitted prompt selects nonterminal stdin (M1).
-    \\M0 validates arguments and directories; execution and stdin reading are unimplemented.
+    \\PROMPT is capped at 1 MiB. - or omitted prompt selects nonterminal stdin.
+    \\--check is rejected before execution until M3.
     \\
 ;
 pub const login_help =
@@ -155,7 +155,7 @@ pub const login_help =
     \\  --login-timeout SECONDS  Positive integer (default: 300; max: 86400)
     \\  --no-input               Disable login interaction
     \\  --help                   Show this help without a backend
-    \\Login is unimplemented in M0.
+    \\Interactive login is unimplemented until M2; run codex login separately.
     \\
 ;
 
