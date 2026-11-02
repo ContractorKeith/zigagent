@@ -72,6 +72,22 @@ class PackagingTests(unittest.TestCase):
         (self.directory / "wrong.tar.gz").write_bytes(b"wrong")
         self.validate()
 
+    def test_generated_outputs_do_not_follow_symlinks(self):
+        for name, command in (('SHA256SUMS', 'manifest'), (self.name, 'build')):
+            with self.subTest(output=name):
+                sentinel = self.directory / 'sentinel'
+                sentinel.write_text('leave alone')
+                path = self.directory / name
+                path.unlink()
+                path.symlink_to(sentinel)
+                result = subprocess.run([sys.executable, str(ROOT / 'scripts/package.py'),
+                                         command, '--directory', str(self.directory)],
+                                        capture_output=True, timeout=120)
+                self.assertEqual(sentinel.read_text(), 'leave alone')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertFalse(path.is_symlink())
+                self.validate(success=True)
+
     def test_rejects_member_paths_types_modes_duplicates_and_missing(self):
         archive = self.directory / self.name
         original = archive.read_bytes()
@@ -112,9 +128,9 @@ class PackagingTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
-    def run_runner(self, *args):
+    def run_runner(self, *args, env=None):
         return subprocess.run([sys.executable, str(ROOT / "scripts/live-check.py"),
-                               *args], capture_output=True, timeout=40)
+                               *args], capture_output=True, timeout=40, env=env)
 
     def test_live_runner_requires_explicit_opt_in_and_model(self):
         for args in ((), ("--model", "test"), ("--test-mode",)):
@@ -202,6 +218,31 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn(b"SECRET", result.stdout + result.stderr)
             finally:
                 shutil.rmtree(scratch)
+
+    def test_malformed_nested_result_reports_json_failure(self):
+        with tempfile.TemporaryDirectory(prefix='zigagent-malformed-wrapper-') as temp:
+            fake = Path(temp) / 'wrapper'
+            for output in (42, None, [], {}):
+                with self.subTest(output=output):
+                    value = {'status': 'completed', 'backend': {'version': '0.166.0'},
+                             'verification': {'status': 'passed', 'exit_code': 0,
+                                              'output': output}}
+                    fake.write_text('#!' + sys.executable + '\nimport sys\n'
+                                    'print("zigagent 0.1.0" if "--version" in sys.argv '
+                                    'else ' + repr(json.dumps(value)) + ')\n')
+                    fake.chmod(0o755)
+                    result = self.run_runner('--test-mode', '--model', 'test-model',
+                                             '--binary', str(fake), '--cleanup-success',
+                                             env=dict(os.environ, TMPDIR=temp))
+                    report = json.loads(result.stdout)
+                    try:
+                        self.assertEqual(result.returncode, 1)
+                        self.assertEqual(result.stderr, b'')
+                        self.assertFalse(report['passed'])
+                        self.assertEqual(report['runner_error'], 'fixture_or_execution_failed')
+                        self.assertTrue(Path(report['scratch']).is_dir())
+                    finally:
+                        shutil.rmtree(report['scratch'])
 
     def test_benchmark_reports_wrapper_only_metrics_without_codex(self):
         result = subprocess.run([sys.executable, str(ROOT / "scripts/benchmark.py"),

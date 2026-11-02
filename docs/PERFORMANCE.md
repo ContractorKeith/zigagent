@@ -2,7 +2,7 @@
 
 These are synthetic wrapper-only measurements, not Codex/process-tree memory
 or model latency measurements. No claim of an overall low-memory stack follows.
-Mac measurements remain parent-owned; no Mac values are inferred from Linux.
+Both native hosts have measured baselines below; no Mac values are inferred from Linux.
 
 ## Reproduce
 
@@ -14,8 +14,8 @@ python3 scripts/benchmark.py --samples 50 --enforce
 
 On Mac Studio select existing SDK 15.4 using the helper described in
 [testing](TESTING.md#macos-sdk-compatibility) for both build commands. `--enforce`
-applies the measured Linux x86_64 budgets only; Mac reports measurements with
-`linux_budgets_enforced: false` until parent supplies a native baseline.
+applies measured budgets on Linux x86_64 and macOS arm64 and reports
+`budgets_enforced: true` on those hosts.
 
 Python drives an unshipped native Zig/libc helper. For each sample that helper
 forks/execs only `zigagent --version` or `--help`, directs standard streams to
@@ -52,10 +52,24 @@ observation supplies generous regression alarms, not a general performance SLA:
 1 MiB binary (8.7× measured), 50 ms p95 (66× measured), 16 MiB child peak RSS
 (10× measured). The slack accommodates ordinary loader/scheduler differences
 while catching a large accidental dependency, startup wait or allocation.
-Linux native CI enforces these after correctness acceptance; Mac measures only.
+Both native CI hosts enforce these after correctness acceptance.
 Investigate reproducible excess with the same build/host/method before changing
 budgets. No timing threshold is used to assert arrival of model text or messages.
 
-Parent must append native Mac actual version/hash/build/SDK/method and values
-before release and decide meaningful Mac thresholds. A prepared benchmark
-runner, a cross-build or passing CI is not fabricated native measurement evidence.
+## Actual Mac observation — 2026-11-02
+
+Mac Studio, macOS 26.6 arm64, SDK 15.4, Zig 0.15.2 ReleaseSmall; candidate
+0.1.0 at bac00f6. Native packaging, checksum and extracted-binary hash checks
+passed. Binary: **178,056 bytes**, SHA256
+`57a5805c73fc6b22a7d02e151a6e9a45e9aba37021b644cb6bad715f5334ff33`.
+
+| Command (50 samples) | Median ms | p95 ms | Max ms | Peak RSS bytes |
+|---|---:|---:|---:|---:|
+| --version | 1.886 | 2.394 | 2.632 | 1,523,712 |
+| --help | 1.8855 | 2.041 | 2.104 | 1,523,712 |
+
+Same native-helper warm-cache method; Darwin wait4 reports bytes. These data
+justify the same generous alarms: 1 MiB binary (5.9× measured), 50 ms p95
+(20.9× measured), 16 MiB peak RSS (11× measured). Measurements do not establish
+live compatibility; the first Mac acceptance run had a separate timing-test
+failure and no real model call was made in that run.

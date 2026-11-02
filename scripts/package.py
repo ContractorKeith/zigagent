@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build and validate native release archives; Python is maintainer tooling only."""
 import argparse
+from contextlib import contextmanager
 import gzip
 import hashlib
 import io
+import os
 from pathlib import Path
 import platform
 import re
@@ -15,6 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ("linux-x86_64", "macos-arm64")
 FILES = ("zigagent", "README.md", "LICENSE", "CHANGELOG.md")
 MAX_MEMBER = 32 * 1024 * 1024
+
+
+@contextmanager
+def atomic_output(path):
+    """Replace the output entry, never write through an existing symlink."""
+    path = Path(path)
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.zigagent-', delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            yield stream
+            stream.close()
+            temporary.chmod(0o644)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def version():
@@ -113,7 +130,7 @@ def build(directory):
     name = archive_name(target)
     prefix = name.removesuffix(".tar.gz")
     # Normalize metadata and gzip time so identical inputs yield identical archives.
-    with (directory / name).open("wb") as raw:
+    with atomic_output(directory / name) as raw:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
             with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as tar:
                 for leaf in FILES:
@@ -131,7 +148,8 @@ def build(directory):
 def write_manifest(directory, targets):
     directory = Path(directory)
     lines = [f"{sha256(directory / archive_name(t))}  {archive_name(t)}\n" for t in targets]
-    (directory / "SHA256SUMS").write_text("".join(lines))
+    with atomic_output(directory / "SHA256SUMS") as stream:
+        stream.write("".join(lines).encode())
 
 
 def main():

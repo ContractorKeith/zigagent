@@ -170,8 +170,8 @@ PYTHON
 
 ## M4 tooling
 
-The canonical gate now includes native ReleaseSmall packaging and 12 tooling
-methods (97 Python methods total). Artifact tests recompute checksums when
+The canonical gate now includes native ReleaseSmall packaging and 14 tooling
+methods (99 Python methods total). Artifact tests recompute checksums when
 attacking content, so they exercise content validation beyond checksum mismatch.
 They reject truncated/missing/extra/wrong artifacts, invalid manifests, traversal,
 symlinks, duplicate/missing members, modes, executable format and version.
@@ -206,3 +206,14 @@ assertions, letting multiplication pass as addition. A copied fake backend
 reproduced this false success under PYTHONOPTIMIZE=1. Explicit conditional
 failures now reject the wrong edit in both caller and independent checks,
 regardless of optimization.
+
+Review findings #25–26: malformed nested check-output values now produce generic
+JSON failure evidence instead of a traceback. Generated archives and manifests
+replace their directory entries atomically, leaving existing symlink targets
+untouched. Regression fixtures first reproduced both failures.
+
+Native follow-up #27: normal descendant cleanup now waits for fixture readiness
+before its three-second cleanup allowance. A 0.8-second delay at each backend
+startup reproduced all three old whole-run timeout failures; the new test
+includes this delay and retains descendant/unrelated-process assertions.
+The original Mac timeout's precise cause was not established independently.

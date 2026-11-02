@@ -180,12 +180,15 @@ class LifecycleTests(CliCase):
             self.assert_stopped(pid)
 
     def test_normal_exit_cleans_descendants_with_and_without_pipes(self):
-        unrelated = subprocess.Popen(['sleep', '20'])
+        self.env['ZIGAGENT_TEST_STARTUP_DELAY'] = '.8'
+        unrelated = subprocess.Popen(['sleep', '60'])
         self.addCleanup(lambda: (unrelated.terminate(), unrelated.wait()) if unrelated.poll() is None else None)
         for scenario in ('owned_exit_pipes', 'owned_exit_closed', 'owned_simultaneous'):
             with self.subTest(scenario=scenario):
                 self.log.with_name(self.log.name + '.pids').unlink(missing_ok=True)
+                self.log.with_name(self.log.name + '.ready').unlink(missing_ok=True)
                 p = self.start_work(scenario)
+                self.wait_file('.ready', timeout=8)
                 out, err = p.communicate(timeout=3)
                 self.assertEqual(p.returncode, 0, (out, err))
                 self.assertEqual(json.loads(out)['status'], 'completed')

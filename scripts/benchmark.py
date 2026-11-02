@@ -21,7 +21,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=ROOT / "zig-out/bin/zigagent")
     parser.add_argument("--samples", type=int, default=50)
-    parser.add_argument("--enforce", action="store_true", help="enforce Linux baseline budgets")
+    parser.add_argument("--enforce", action="store_true", help="enforce measured native baseline budgets")
     args = parser.parse_args()
     if not 5 <= args.samples <= 1000:
         parser.error("samples must be 5..1000")
@@ -35,8 +35,9 @@ def main():
                          "p95_ms": sorted(times)[int((len(times) - 1) * .95)],
                          "max_ms": max(times), "peak_rss_bytes": max(rss)}
     size = binary.stat().st_size
-    # Generous finite Linux alarms derived in docs/PERFORMANCE.md. macOS needs native evidence.
-    enforced = args.enforce and platform.system() == "Linux" and platform.machine() == "x86_64"
+    # Generous finite alarms derived from both native hosts in docs/PERFORMANCE.md.
+    enforced = args.enforce and (platform.system(), platform.machine()) in (
+        ("Linux", "x86_64"), ("Darwin", "arm64"))
     passed = size <= 1024 * 1024 and all(m["p95_ms"] <= 50 and
              m["peak_rss_bytes"] <= 16 * 1024 * 1024 for m in metrics.values())
     report = {"platform": platform.platform(), "machine": platform.machine(),
@@ -44,7 +45,7 @@ def main():
               "samples_per_command": args.samples, "warm_cache": True,
               "scope": "wrapper-only help/version; no backend or process-tree measurement",
               "rss_source": "native launcher wait4 ru_maxrss; Darwin bytes, Linux KiB converted to bytes",
-              "metrics": metrics, "linux_budgets_enforced": enforced,
+              "metrics": metrics, "budgets_enforced": enforced,
               "passed": passed if enforced else None}
     print(json.dumps(report, sort_keys=True))
     return 0 if not enforced or passed else 1

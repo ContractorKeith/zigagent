@@ -94,6 +94,11 @@ def main():
                 not isinstance(value.get("backend"), dict)):
             raise ValueError("invalid_wrapper_result")
         verification = value["verification"]
+        if (not isinstance(verification.get("output"), str) or
+                not isinstance(verification.get("status"), str) or
+                (verification.get("exit_code") is not None and
+                 type(verification["exit_code"]) is not int)):
+            raise ValueError("invalid_verification_result")
         report.update(exit_code=result.returncode,
                       status=value.get("status") if value.get("status") in
                       ("completed", "failed", "timed_out", "cancelled") else "invalid",
