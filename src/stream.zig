@@ -105,9 +105,8 @@ pub const Events = struct {
                 self.protocol_error = true;
                 return;
             }
-            // Tool attempts may fail before the agent recovers. Final turn/exit
-            // status decides completion; the caller check decides verification.
-            if (std.mem.eql(u8, item_type.string, "error")) self.failed = true;
+            // Tool failures may recover; error items also carry nonfatal warnings.
+            // Final turn/exit status decides completion, not individual items.
             if (std.mem.eql(u8, item_type.string, "agent_message")) {
                 const text = field(item, "text") orelse {
                     self.protocol_error = true;

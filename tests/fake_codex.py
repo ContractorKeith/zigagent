@@ -108,6 +108,8 @@ def main():
             event("item.completed", item={"type": "agent_message", "text": "fixed and retested"})
         if scenario == "patch_failed":
             event("item.completed", item={"type": "file_change", "status": "failed"})
+        if scenario == "warning":
+            event("item.completed", item={"id": "notice", "type": "error", "message": "nonfatal configuration warning"})
         if scenario == "bad_item":
             event("item.completed", item={"type": "agent_message", "text": 9})
         if scenario != "missing_completion":

@@ -153,6 +153,13 @@ class BackendTests(CliCase):
             with self.subTest(scenario=scenario):
                 self.assert_failure(scenario, "protocol_error")
 
+    def test_warning_item_does_not_override_completed_turn(self):
+        p, value = self.run_fake("warning")
+        self.assertEqual(p.returncode, 0, value)
+        self.assertEqual(value["status"], "completed")
+        self.assertEqual(value["summary"], "synthetic completion")
+        self.assertIsNone(value["error"])
+
     def test_failure_events_and_nonzero_exit(self):
         for scenario in ("failed", "turn_failed", "error_event"):
             with self.subTest(scenario=scenario):
