@@ -1,4 +1,4 @@
-# Codex 0.166.0 backend contract (M1)
+# Codex 0.166.0 backend contract (M2)
 
 Evidence inspected on Linux x86_64, 2026-11-02: `codex --version` returned
 `codex-cli 0.166.0`; `codex --help`, `codex exec --help` and `codex features list`
@@ -18,8 +18,19 @@ The wrapper performs `--version`, `exec --help`, then `login status`, each with
 stdin closed, finite output retention and the shared preflight deadline.
 Required help switches must be present before authentication/task execution.
 ChatGPT status must match the tested text and exit zero. Logged-out text plus
-nonzero exit produces authentication_required; API-key status and other probe
-failures produce authentication_failed. M1 never starts interactive login.
+nonzero exit is recognized as logged out; API-key status and other probe
+failures produce authentication_failed and never start login. Only recognized
+logged-out status may start official `codex login`, with controlling-terminal
+stdin and output relayed to that terminal, never result stdout. `--no-input`
+or no controlling terminal returns authentication_required. Login and the
+post-login ChatGPT status probe share a separate `--login-timeout` budget.
+Explicit `zigagent login` performs only that flow and verification, without
+version/capability probes or a task. API-key environment overrides are removed
+from login children as well as probes and exec. zigagent never reads credentials
+or user config.
+The terminal is temporarily assigned to login's owned process group, then its
+previous foreground group is restored. Terminal output relay is nonblocking;
+a saturated terminal may lose login chatter rather than block supervision.
 
 A task uses these argv elements, followed by repeatable `--add-dir ABS_PATH`
 and a final `-`. The prompt goes through a separate stdin pipe and is closed
@@ -77,16 +88,27 @@ before the full prompt is delivered cannot succeed.
 
 All pipes are nonblocking and polled together, including backend stdin. Prompts
 and preflight share one timeout; execution starts a fresh timeout after auth.
-Each workload has its own process group. Deadline cleanup sends SIGKILL to that
-group, then allows at most two seconds to reap; ordinary inherited pipes cannot
-hold the wrapper indefinitely. The leader stays unreaped while pipes drain,
-so deadline signaling cannot target a recycled group id. Failure preserves
-edits and never retries.
+Each workload has its own process group. SIGINT/SIGTERM request cancellation;
+timeout, invalid framed events and closed caller stdout also stop owned work.
+TERM is followed by KILL after one second, or 100ms after ordinary leader exit.
+The entire drain/reap cleanup budget is three seconds. A non-reaping POSIX
+`waitid(WNOWAIT)` observes leader exit while pinning the PID/group identifier.
+The final group KILL always precedes reaping, including after normal exit:
+ordinary descendants are cleaned up even if they closed both output pipes.
+No group or PID is signaled after reaping. Error paths force-stop and perform
+bounded reaping. Uninterruptible children can outlive the budget; incomplete
+cleanup cannot report success. Deliberately detached processes, host failure
+and SIGKILL of zigagent are outside the cleanup guarantee.
 
-M2 must add graceful termination/escalation, SIGINT/SIGTERM result translation,
-early detection of closed result stdout, and broader descendant/signal tests.
-M1 does not promise cleanup of descendants that close their pipes and outlive
-a successful leader, or deliberately detached processes. An uninterruptible OS
-child can outlive the finite cleanup budget; the wrapper returns failure.
-Interactive login is M2 and `--check` is rejected before any backend starts
-until M3. Retained output is bounded; Codex memory, context and cost are not.
+Caller stdout is polled for hangup/error during prompt waits and every child
+workload. On closure the wrapper stops owned work and exits unsuccessfully
+without attempting a result. Result/help writes are nonblocking and each has
+a two-second deadline, including when a reader remains open but stops reading.
+Malformed newline-terminated events and oversized partial events stop live
+execution promptly; shorter partial events at EOF remain protocol errors.
+All backend streams continue draining concurrently during cleanup.
+
+Execution gets a fresh full `--timeout` budget after authentication; login does
+not consume that budget. Failure preserves edits and never retries a mutating
+run. `--check` remains rejected before any backend starts until M3. Retained
+output is bounded; Codex memory, context and cost are not.

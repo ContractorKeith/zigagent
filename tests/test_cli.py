@@ -153,9 +153,9 @@ class ContractTests(CliCase):
         self.assertTrue(self.log.exists())
         self.log.unlink()
         p = self.invoke("login", "--no-input", "--login-timeout", "1")
-        self.assertEqual(p.returncode, 1)
+        self.assertEqual(p.returncode, 4)
         self.assertEqual(p.stdout, b"")
-        self.assertIn(b"unimplemented", p.stderr)
+        self.assertIn(b"authentication_required", p.stderr)
         self.assertFalse(self.log.exists())
 
     def test_login_rejects_run_flags(self):

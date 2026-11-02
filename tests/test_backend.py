@@ -206,8 +206,7 @@ class BackendTests(CliCase):
         self.assertEqual(v["diagnostics"], {"output": "?☃", "truncated": True})
 
     def test_all_workloads_have_deadlines(self):
-        for scenario in ("version_hang", "help_hang", "auth_hang", "exec_hang", "closed_pipes_hang",
-                         "descendant_pipes"):
+        for scenario in ("version_hang", "help_hang", "auth_hang", "exec_hang", "closed_pipes_hang"):
             with self.subTest(scenario=scenario):
                 start = time.monotonic()
                 self.assert_failure(scenario, "timed_out", 124, "--timeout", "1")

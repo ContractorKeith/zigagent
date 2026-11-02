@@ -1,15 +1,28 @@
 const std = @import("std");
 const cli = @import("cli.zig");
 const result = @import("result.zig");
+const process = @import("process.zig");
 const backend = @import("backend.zig");
 
 fn writeAll(fd: std.posix.fd_t, bytes: []const u8) !void {
+    const flags = try std.posix.fcntl(fd, std.posix.F.GETFL, 0);
+    _ = try std.posix.fcntl(fd, std.posix.F.SETFL, flags | @as(u32, @bitCast(std.posix.O{ .NONBLOCK = true })));
+    defer _ = std.posix.fcntl(fd, std.posix.F.SETFL, flags) catch 0;
+    var deadline = try process.Deadline.init(2);
     var offset: usize = 0;
-    while (offset < bytes.len) {
-        const n = try std.posix.write(fd, bytes[offset..]);
+    while (offset < bytes.len and !deadline.expired()) {
+        const n = std.posix.write(fd, bytes[offset..]) catch |err| switch (err) {
+            error.WouldBlock => {
+                var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = std.posix.POLL.OUT, .revents = 0 }};
+                _ = try std.posix.poll(&fds, 20);
+                continue;
+            },
+            else => return err,
+        };
         if (n == 0) return error.OutputClosed;
         offset += n;
     }
+    if (offset != bytes.len) return error.OutputClosed;
 }
 
 fn emit(allocator: std.mem.Allocator, value: result.Result, json: bool, exit_code: u8) noreturn {
@@ -31,6 +44,7 @@ fn emit(allocator: std.mem.Allocator, value: result.Result, json: bool, exit_cod
 
 pub fn main() void {
     std.posix.sigaction(std.posix.SIG.PIPE, &.{ .handler = .{ .handler = std.posix.SIG.IGN }, .mask = std.posix.sigemptyset(), .flags = 0 }, null);
+    process.installSignals();
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -61,7 +75,16 @@ pub fn main() void {
         value.@"error" = .{ .code = "usage_error", .message = "Workspace and additional context paths must be accessible directories." };
         emit(allocator, value, json, 2);
     };
-    const exit_code = backend.run(allocator, opts, &value) catch blk: {
+    const exit_code = backend.run(allocator, opts, &value) catch |err| blk: {
+        switch (err) {
+            error.Interrupted, error.Terminated => {
+                value.status = .cancelled;
+                value.@"error" = .{ .code = "cancelled", .message = "Cancelled; edits are preserved." };
+                break :blk @as(u8, if (err == error.Interrupted) 130 else 143);
+            },
+            error.OutputClosed => std.process.exit(1),
+            else => {},
+        }
         value.@"error" = .{ .code = "backend_failed", .message = "Backend supervision failed; edits are preserved." };
         break :blk @as(u8, 1);
     };
