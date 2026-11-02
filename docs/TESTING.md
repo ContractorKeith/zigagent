@@ -33,7 +33,7 @@ The local Linux compiler executable installed for M0 is:
 
 `tests/harness.py` makes a disposable directory for every test and captures stdout/stderr with a finite subprocess timeout. A fake `codex` is first on that test's PATH; explicit `--codex` also exercises a path containing spaces. No test changes HOME/CODEX_HOME, reads credentials, or calls a real model. Small fixture/log files live in the disposable directory. Compiler caches remain on disk in the checkout. Linux defaults to glibc 2.28 through Zig's bundled libc support: this avoids pinned Zig's inability to link the newer Arch host CRT `.sframe` relocations. The binary links OS libc; macOS uses its normal target.
 
-The gate runs **7 Zig unit tests and 83 Python black-box tests**. All 23 original M0 checks remain, adapting temporary unimplemented run/stdin expectations to delivered behavior. Twenty-one new backend checks cover strict versions and failed/missing probes; capability checks; ChatGPT/API-key/logged-out/unexpected authentication; literal argv/path/model data; exact stdin forwarding and early closure rejection; unchanged synthetic config; API-key environment removal; 1 MiB prompt boundaries; terminal rejection; completion plus zero exit; malformed/partial/invalid UTF-8/oversized events; unknown events; terminal failures and recovered tool attempts; nonfatal warning items; completion usage shape and terminal ordering; exact capability tokens; duplicate completion; nonzero exit; concurrent saturation and bounded UTF-8-safe output. Deadline fixtures cover open prompt pipes, hanging version/help/auth/execution, closed output pipes with a live leader, and inherited descendant pipes.
+The gate runs **7 Zig unit tests and 85 Python black-box tests**. All 23 original M0 checks remain, adapting temporary unimplemented run/stdin expectations to delivered behavior. Twenty-one new backend checks cover strict versions and failed/missing probes; capability checks; ChatGPT/API-key/logged-out/unexpected authentication; literal argv/path/model data; exact stdin forwarding and early closure rejection; unchanged synthetic config; API-key environment removal; 1 MiB prompt boundaries; terminal rejection; completion plus zero exit; malformed/partial/invalid UTF-8/oversized events; unknown events; terminal failures and recovered tool attempts; nonfatal warning items; completion usage shape and terminal ordering; exact capability tokens; duplicate completion; nonzero exit; concurrent saturation and bounded UTF-8-safe output. Deadline fixtures cover open prompt pipes, hanging version/help/auth/execution, closed output pipes with a live leader, and inherited descendant pipes.
 
 `tests/fake_codex.py` uses only synthetic data. `ZIGAGENT_TEST_LOG`, `ZIGAGENT_TEST_SCENARIO` and `ZIGAGENT_TEST_VERSION` configure that fixture, never the shipped app. The argv/config test snapshots a disposable project's synthetic `.codex/config.toml` and checks exact suppression flags; it makes no claim to prove the actual Codex implementation's config behavior. Installed 0.166.0 help/features/login-status inspection and official documentation establish supported controls; fake events provide wrapper evidence, not live task compatibility evidence.
 
@@ -90,7 +90,7 @@ establish the cause of the earlier intermittent full-gate timeout.
 
 Attack follow-up: four tests first reproduced closed-stdin login failure, closed-stdout login/panic, terminal Ctrl-C handled as exit 130 being misclassified, and closed-stderr output panic. Terminal descriptors now stay above 2, child setup reserves a missing stdin slot, login checks caller output before opening its terminal, and output fcntl errors return failure. Login preserves handled 130/143 exits as cancellation. Closed-stderr JSON runs remain supported.
 
-M3 adds 13 methods in `tests/test_checks.py` and replaces the temporary M0 check
+M3 adds 15 methods in `tests/test_checks.py` and replaces the temporary M0 check
 rejection assertion with a passing check. Fixtures exercise a deterministic
 scratch Git repository edit followed by pass/fail/no check, preserved staged
 content with no automatic commits/retries, actual exit status and shell errors,
@@ -123,6 +123,20 @@ macOS CI failure: the backend correctly timed out before the check handoff.
 The same probe passes with assertions on timeout status/exit, verification
 `not_run`, and the absent check marker. Scheduling determines the timeout phase;
 this test does not claim deterministic coverage of the handoff branch.
+
+Review follow-up (#21): a fake backend renames the workspace and creates a
+replacement at its old path. The new check first read replacement content;
+retaining an open workspace directory and using it as the child's cwd fixes
+the identity loss. The regression requires verification of original content.
+Closed-stdin/stderr probes then exposed child setup overwriting a directory
+handle in a standard descriptor slot; moving it above fd 2 preserves identity
+without changing the caller's closed descriptors.
+
+Native follow-up (#22): the separate-login-budget test exhausted its one-second
+preflight allowance before login on Mac. A 0.4-second fixture startup delay
+reproduced this locally. The test now includes that delay, gives probes and
+execution three seconds, and makes login alone take 3.2 seconds under a separate
+six-second login allowance. Its PTY harness remains bounded at twelve seconds.
 
 
 Nine M3 test methods were also run against an unchanged M2 binary built from

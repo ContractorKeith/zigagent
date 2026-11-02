@@ -3,6 +3,7 @@ const cli = @import("cli.zig");
 const process = @import("process.zig");
 const stream = @import("stream.zig");
 const Result = @import("result.zig").Result;
+const c = @cImport(@cInclude("fcntl.h"));
 
 fn fail(value: *Result, code: []const u8, message: []const u8, exit: u8) u8 {
     value.@"error" = .{ .code = code, .message = message };
@@ -61,6 +62,15 @@ pub fn run(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
     // Successful probe chatter is not a run diagnostic.
     value.diagnostics = .{};
     const workspace = try std.fs.cwd().realpathAlloc(a, opts.workspace);
+    // Retain directory identity if the backend renames or replaces its path.
+    var workspace_dir = try std.fs.cwd().openDir(workspace, .{});
+    defer workspace_dir.close();
+    // Child stdio setup must not overwrite a handle that reused fd 0 or 2.
+    if (workspace_dir.fd < 3) {
+        const moved = try std.posix.fcntl(workspace_dir.fd, c.F_DUPFD_CLOEXEC, 3);
+        workspace_dir.close();
+        workspace_dir = .{ .fd = @intCast(moved) };
+    }
     var argv: std.ArrayList([]const u8) = .empty;
     try argv.appendSlice(a, &.{ opts.codex, "exec", "--json", "--ephemeral", "--color", "never", "--ignore-user-config", "--ignore-rules", "--dangerously-bypass-approvals-and-sandbox", "-c", "forced_login_method=\"chatgpt\"", "--disable", "hooks", "--disable", "plugins", "--disable", "apps", "--disable", "memories", "--model", opts.model.?, "--cd", workspace });
     for (opts.add_dirs.items) |dir| try argv.appendSlice(a, &.{ "--add-dir", try std.fs.cwd().realpathAlloc(a, dir) });
@@ -79,7 +89,7 @@ pub fn run(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
     if (!events.completed) return fail(value, "protocol_error", "Backend exited without a recognized completion event.", 1);
     if (opts.check) |command| {
         var check = try process.Capture.init(a, opts.output_limit);
-        check.cwd = workspace;
+        check.cwd_dir = workspace_dir;
         check.combined_output = true;
         check.codex_environment = false;
         process.run(a, &.{ "/bin/sh", "-c", command }, null, &execution, &check) catch |err| {

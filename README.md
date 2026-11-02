@@ -36,12 +36,14 @@ printf '%s' 'Fix the parser' | ./zig-out/bin/zigagent run --model gpt-6.1-sol --
   --check 'zig build test' --json --no-input 'Fix the parser'
 ```
 
-`--check` runs `/bin/sh -c COMMAND` in the canonical workspace with EOF stdin,
+`--check` runs `/bin/sh -c COMMAND` in the original workspace directory with EOF stdin,
 only after valid Codex completion and zero backend exit. It shares the execution
 deadline; an exhausted budget never starts it. Check output retains a bounded,
 UTF-8-safe combined stdout/stderr tail (read order across separate pipes).
 Only the explicit check command is shell syntax; prompts, models and paths stay
 literal. Failure preserves edits and never starts a repair or retry.
+An open directory handle preserves check location if the backend renames or
+replaces the workspace path.
 
 | Outcome | Run / verification | Exit |
 |---|---|---|

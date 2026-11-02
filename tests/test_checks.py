@@ -277,6 +277,27 @@ esac
         self.assertFalse(alias.exists())
         self.assertEqual(json.loads(p.stdout)['verification']['status'], 'passed')
 
+    def test_check_preserves_workspace_directory_identity(self):
+        self.env['ZIGAGENT_TEST_SCENARIO'] = 'replace_workspace'
+        p = self.invoke(*self.args('cat identity; test "$(cat identity)" = original'))
+        v = json.loads(p.stdout)
+        self.assertEqual(p.returncode, 0, v)
+        self.assertEqual(v['verification']['status'], 'passed')
+        self.assertEqual(v['verification']['output'], 'original')
+        self.assertEqual((self.workspace / 'identity').read_text(), 'replacement')
+
+    def test_check_workspace_handle_survives_closed_standard_fds(self):
+        for closed in ((0,), (2,), (0, 2)):
+            def close_fds():
+                for fd in closed:
+                    os.close(fd)
+            p = subprocess.run([str(BINARY), *self.args('printf checked')],
+                               capture_output=True, preexec_fn=close_fds,
+                               cwd=self.root, env=self.env, timeout=5)
+            v = json.loads(p.stdout)
+            self.assertEqual(p.returncode, 0, v)
+            self.assertEqual(v['verification']['output'], 'checked')
+
     def test_closed_stdout_during_check_stops_owned_group(self):
         from harness import ROOT
         self.env['ZIGAGENT_TEST_SCENARIO'] = 'edit'

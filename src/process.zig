@@ -91,7 +91,7 @@ pub const Capture = struct {
     // Auth/version recognition is independent of the caller's diagnostic limit.
     probe_stderr: stream.Buffer,
     events: ?*stream.Events = null,
-    cwd: ?[]const u8 = null,
+    cwd_dir: ?std.fs.Dir = null,
     combined_output: bool = false,
     codex_environment: bool = true,
     started: bool = false,
@@ -131,7 +131,7 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
     defer if (missing_stdin) posix.close(0);
     var child = std.process.Child.init(argv, a);
     child.pgid = 0;
-    child.cwd = capture.cwd;
+    child.cwd_dir = capture.cwd_dir;
     child.stdin_behavior = if (capture.terminal != null) .Inherit else if (input != null) .Pipe else .Ignore;
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Pipe;

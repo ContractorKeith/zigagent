@@ -16,7 +16,8 @@ class LifecycleTests(CliCase):
     def args(self, *extra):
         return [str(BINARY), 'run', '--json', '--model', 'm', '--codex', str(self.fake), *extra, 'task']
 
-    def terminal_run(self, scenario, *extra, login=False, cancel=None, closed=(), ctrl_c=False):
+    def terminal_run(self, scenario, *extra, login=False, cancel=None, closed=(), ctrl_c=False,
+                     wait_seconds=6):
         self.log.with_name(self.log.name + '.login').unlink(missing_ok=True)
         self.env['ZIGAGENT_TEST_SCENARIO'] = scenario
         master, slave = pty.openpty()
@@ -31,7 +32,7 @@ class LifecycleTests(CliCase):
                              preexec_fn=terminal, pass_fds=(slave,))
         os.close(slave)
         chatter = b''
-        end = time.monotonic() + 6
+        end = time.monotonic() + wait_seconds
         try:
             while p.poll() is None and time.monotonic() < end:
                 if select.select([master], [], [], .02)[0]:
@@ -303,9 +304,13 @@ class LifecycleTests(CliCase):
         self.assertNotIn(['login'], self.records())
 
     def test_login_budget_is_separate_from_execution(self):
-        code, out, err, _ = self.terminal_run('login_slow', '--timeout', '1', '--login-timeout', '2')
+        # Login alone exceeds execution's budget; probe startups have room.
+        self.env['ZIGAGENT_TEST_STARTUP_DELAY'] = '.4'
+        self.env['ZIGAGENT_TEST_LOGIN_DELAY'] = '3.2'
+        code, out, err, _ = self.terminal_run('login_slow', '--timeout', '3',
+                                             '--login-timeout', '6', wait_seconds=12)
         self.assertEqual(code, 0, (out, err))
-        self.assertGreater(json.loads(out)['elapsed_ms'], 1000)
+        self.assertGreater(json.loads(out)['elapsed_ms'], 3200)
 
     def test_login_cancellation_does_not_start_agent(self):
         for sig, expected in [(signal.SIGINT, 130), (signal.SIGTERM, 143)]:

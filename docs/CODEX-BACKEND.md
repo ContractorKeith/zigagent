@@ -113,7 +113,8 @@ Execution gets a fresh full `--timeout` budget after authentication; login does
 not consume that budget. Failure preserves edits and never retries a mutating
 run. An optional caller check starts only after valid completion and zero backend
 exit, under that same execution deadline. It invokes `/bin/sh -c COMMAND` in the
-canonical workspace with EOF stdin and the caller's inherited environment;
+original workspace directory, retained through an open directory handle, with
+EOF stdin and the caller's inherited environment;
 API-key removal applies only to Codex children. Only COMMAND is shell syntax.
 The same owned-group supervision cleans checks and their ordinary descendants.
 Check stdout/stderr are drained concurrently into one bounded tail in observed
