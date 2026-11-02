@@ -39,6 +39,8 @@ def main():
               if scenario == "capability_prefix" else help_text)
         return 0
     if args == ["login"]:
+        if scenario == "login_handled_interrupt":
+            signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))
         assert os.isatty(0), "login stdin must be the controlling terminal"
         print("LOGIN READY", flush=True)
         if scenario == "login_hang":

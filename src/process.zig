@@ -38,6 +38,13 @@ pub fn openTerminal(output_only: bool) !posix.fd_t {
     const flags: c_int = c.O_CLOEXEC | (if (output_only) c.O_WRONLY | c.O_NONBLOCK else c.O_RDWR);
     const fd = c.open("/dev/tty", flags);
     if (fd < 0) return error.NoTerminal;
+    // Never occupy a closed standard descriptor or leave CLOEXEC on login stdin.
+    if (fd < 3) {
+        const moved = c.fcntl(fd, c.F_DUPFD_CLOEXEC, @as(c_int, 3));
+        posix.close(fd);
+        if (moved < 0) return error.NoTerminal;
+        return moved;
+    }
     return fd;
 }
 
@@ -91,6 +98,7 @@ pub const Capture = struct {
     input_incomplete: bool = false,
     cleanup_incomplete: bool = false,
     exit_signal: ?u8 = null,
+    exit_code: ?u8 = null,
 
     pub fn init(a: std.mem.Allocator, output_limit: usize) !Capture {
         return .{
@@ -110,6 +118,13 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
         capture.timed_out = true;
         return;
     }
+    // Zig Child's pipe setup assumes standard slots are occupied. Otherwise a
+    // CLOEXEC pipe may become fd 0 and survive dup2(0, 0) with CLOEXEC still set.
+    const stdin_flags = c.fcntl(0, c.F_GETFD);
+    const missing_stdin = stdin_flags < 0 and posix.errno(stdin_flags) == .BADF;
+    if (stdin_flags < 0 and !missing_stdin) return error.DupFailed;
+    if (missing_stdin and c.open("/dev/null", c.O_RDONLY | c.O_CLOEXEC) < 0) return error.DupFailed;
+    defer if (missing_stdin) posix.close(0);
     var child = std.process.Child.init(argv, a);
     child.pgid = 0;
     child.stdin_behavior = if (capture.terminal != null) .Inherit else if (input != null) .Pipe else .Ignore;
@@ -123,11 +138,14 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
     child.env_map = &env;
     // Child has no arbitrary-fd stdin option. Restore caller stdin immediately
     // after spawn; only official login inherits the controlling terminal.
-    const saved_stdin = if (capture.terminal != null) try posix.dup(0) else null;
-    if (saved_stdin) |saved| {
-        defer posix.close(saved);
-        try posix.dup2(capture.terminal.?, 0);
-        defer posix.dup2(saved, 0) catch {};
+    if (capture.terminal) |tty| {
+        const saved = c.fcntl(0, c.F_DUPFD_CLOEXEC, @as(c_int, 3));
+        if (saved < 0 and posix.errno(saved) != .BADF) return error.DupFailed;
+        defer if (saved >= 0) posix.close(saved);
+        try posix.dup2(tty, 0);
+        defer {
+            if (saved >= 0) posix.dup2(saved, 0) catch {} else posix.close(0);
+        }
         try child.spawn();
     } else try child.spawn();
     const foreground = if (capture.terminal) |tty| c.tcgetpgrp(tty) else -1;
@@ -197,6 +215,7 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
                 if (waited.pid != 0) {
                     reaped = true;
                     capture.exit_zero = posix.W.IFEXITED(waited.status) and posix.W.EXITSTATUS(waited.status) == 0;
+                    if (posix.W.IFEXITED(waited.status)) capture.exit_code = @intCast(posix.W.EXITSTATUS(waited.status));
                     if (posix.W.IFSIGNALED(waited.status)) capture.exit_signal = @intCast(posix.W.TERMSIG(waited.status));
                     try child.waitForSpawn();
                     // Drain already buffered bytes below, but never wait on an

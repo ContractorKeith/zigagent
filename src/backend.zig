@@ -100,6 +100,7 @@ fn authState(auth: *process.Capture) Auth {
 }
 
 fn login(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
+    try process.checkCaller();
     if (opts.no_input) return fail(value, "authentication_required", "Login requires a controlling terminal and input enabled.", 4);
     const tty = process.openTerminal(false) catch
         return fail(value, "authentication_required", "Login requires a controlling terminal and input enabled.", 4);
@@ -112,8 +113,8 @@ fn login(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
     capture.terminal_output = output;
     process.run(a, &.{ opts.codex, "login" }, null, &deadline, &capture) catch |err| return launchFailure(value, err);
     if (capture.timed_out) return fail(value, "timed_out", "Official login deadline exceeded.", 124);
-    if (capture.exit_signal == std.posix.SIG.INT) return error.Interrupted;
-    if (capture.exit_signal == std.posix.SIG.TERM) return error.Terminated;
+    if (capture.exit_signal == std.posix.SIG.INT or capture.exit_code == 130) return error.Interrupted;
+    if (capture.exit_signal == std.posix.SIG.TERM or capture.exit_code == 143) return error.Terminated;
     if (!capture.exit_zero or capture.cleanup_incomplete) return fail(value, "authentication_failed", "Official Codex login failed.", 4);
     var auth = try process.Capture.init(a, opts.output_limit);
     try process.run(a, &.{ opts.codex, "login", "status" }, null, &deadline, &auth);

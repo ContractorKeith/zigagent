@@ -16,13 +16,15 @@ class LifecycleTests(CliCase):
     def args(self, *extra):
         return [str(BINARY), 'run', '--json', '--model', 'm', '--codex', str(self.fake), *extra, 'task']
 
-    def terminal_run(self, scenario, *extra, login=False, cancel=None):
+    def terminal_run(self, scenario, *extra, login=False, cancel=None, closed=(), ctrl_c=False):
         self.log.with_name(self.log.name + '.login').unlink(missing_ok=True)
         self.env['ZIGAGENT_TEST_SCENARIO'] = scenario
         master, slave = pty.openpty()
         def terminal():
             os.setsid()
             fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+            for fd in closed:
+                os.close(fd)
         args = [str(BINARY), 'login', *extra] if login else self.args(*extra)
         p = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, cwd=self.root, env=self.env,
@@ -39,7 +41,9 @@ class LifecycleTests(CliCase):
                         break
                     chatter += data
                     if b'LOGIN READY' in data:
-                        if cancel is not None:
+                        if ctrl_c:
+                            os.write(master, b'\x03')
+                        elif cancel is not None:
                             p.send_signal(cancel)
                         else:
                             os.write(master, b'confirm\n')
@@ -53,6 +57,30 @@ class LifecycleTests(CliCase):
 
     def records(self):
         return [json.loads(x) for x in self.log.read_text().splitlines()]
+
+    def test_terminal_login_with_closed_stdin(self):
+        for explicit in (False, True):
+            code, out, err, _ = self.terminal_run('login_success', login=explicit, closed=(0,))
+            self.assertEqual(code, 0, (out, err))
+
+    def test_closed_stdout_never_starts_explicit_login(self):
+        code, out, err, _ = self.terminal_run('login_success', login=True, closed=(1,))
+        self.assertEqual(code, 1, (out, err))
+        self.assertFalse(self.log.exists())
+
+    def test_terminal_ctrl_c_maps_handled_exit_to_cancellation(self):
+        code, out, err, _ = self.terminal_run('login_handled_interrupt', ctrl_c=True)
+        self.assertEqual(code, 130, (out, err))
+        self.assertEqual(json.loads(out)['status'], 'cancelled')
+        self.assertFalse(any(x[:2] == ['exec', '--json'] for x in self.records()))
+
+    def test_closed_diagnostic_fd_does_not_panic(self):
+        p = subprocess.run([str(BINARY), '--bogus'], stdout=subprocess.PIPE,
+                           preexec_fn=lambda: os.close(2), cwd=self.root, env=self.env, timeout=3)
+        self.assertEqual(p.returncode, 1, p.stdout)
+        p = subprocess.run(self.args(), stdout=subprocess.PIPE,
+                           preexec_fn=lambda: os.close(2), cwd=self.root, env=self.env, timeout=4)
+        self.assertEqual(p.returncode, 0, p.stdout)
 
     def test_terminal_login_keeps_json_clean_and_verifies_auth(self):
         code, out, err, chatter = self.terminal_run('login_success')

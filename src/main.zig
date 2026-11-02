@@ -3,11 +3,13 @@ const cli = @import("cli.zig");
 const result = @import("result.zig");
 const process = @import("process.zig");
 const backend = @import("backend.zig");
+const c = @cImport(@cInclude("fcntl.h"));
 
 fn writeAll(fd: std.posix.fd_t, bytes: []const u8, cancellable: bool) !void {
-    const flags = try std.posix.fcntl(fd, std.posix.F.GETFL, 0);
-    _ = try std.posix.fcntl(fd, std.posix.F.SETFL, flags | @as(u32, @bitCast(std.posix.O{ .NONBLOCK = true })));
-    defer _ = std.posix.fcntl(fd, std.posix.F.SETFL, flags) catch 0;
+    // Closed inherited descriptors are caller errors, not unreachable states.
+    const flags = c.fcntl(fd, c.F_GETFL);
+    if (flags < 0 or c.fcntl(fd, c.F_SETFL, flags | c.O_NONBLOCK) < 0) return error.OutputClosed;
+    defer _ = c.fcntl(fd, c.F_SETFL, flags);
     var deadline = try process.Deadline.init(2);
     var offset: usize = 0;
     while (offset < bytes.len and !deadline.expired()) {

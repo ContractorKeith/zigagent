@@ -29,7 +29,7 @@ version/capability probes or a task. API-key environment overrides are removed
 from login children as well as probes and exec. zigagent never reads credentials
 or user config.
 The terminal is temporarily assigned to login's owned process group, then its
-previous foreground group is restored. Terminal output relay is nonblocking;
+previous foreground group is restored. Closed caller stdin is supported: terminal handles stay above standard descriptors and child setup temporarily reserves the stdin slot. Closed stdout stops login before it starts. Login signal termination and handled exits 130/143 both map to cancellation. Terminal output relay is nonblocking;
 a saturated terminal may lose login chatter rather than block supervision.
 
 A task uses these argv elements, followed by repeatable `--add-dir ABS_PATH`
