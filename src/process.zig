@@ -23,7 +23,8 @@ pub fn checkCaller() !void {
         posix.SIG.TERM => return error.Terminated,
         else => {},
     }
-    var fds = [_]posix.pollfd{.{ .fd = 1, .events = 0, .revents = 0 }};
+    // Darwin registers no kqueue filter for an empty event mask.
+    var fds = [_]posix.pollfd{.{ .fd = 1, .events = posix.POLL.OUT, .revents = 0 }};
     _ = try posix.poll(&fds, 0);
     if (fds[0].revents & (posix.POLL.ERR | posix.POLL.HUP | posix.POLL.NVAL) != 0) return error.OutputClosed;
 }
