@@ -101,8 +101,11 @@ def main():
             event("turn.failed", error={"message": "synthetic failure"})
         if scenario == "error_event":
             event("error", message="synthetic failure")
-        if scenario == "tool_failed":
+        if scenario in ("tool_failed", "recovered_tool"):
             event("item.completed", item={"type": "command_execution", "status": "failed", "exit_code": 1})
+        if scenario == "recovered_tool":
+            event("item.completed", item={"type": "command_execution", "status": "completed", "exit_code": 0})
+            event("item.completed", item={"type": "agent_message", "text": "fixed and retested"})
         if scenario == "patch_failed":
             event("item.completed", item={"type": "file_change", "status": "failed"})
         if scenario == "bad_item":

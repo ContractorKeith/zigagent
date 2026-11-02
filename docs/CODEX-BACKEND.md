@@ -68,9 +68,11 @@ JSONL is parsed incrementally, one newline-terminated event at a time. A final
 partial line, invalid JSON/type, oversized event or invalid known message shape
 cannot succeed. Unknown event types and extra fields are tolerated. The last
 completed agent_message supplies the bounded summary. A turn.completed plus
-zero process exit is required; turn.failed, error, failed item status, nonzero
-item exit code, duplicate completion or later malformed input cannot succeed.
-Failure is sticky even if followed by completion. A backend that closes stdin
+zero process exit is required; turn.failed, error, duplicate completion or
+later malformed input cannot succeed. Failed intermediate tool attempts do not
+override a completed turn: a failing test or patch attempt may be recovered by
+the agent. Completion is not verification; only the caller check supplies that.
+Terminal failure is sticky even if followed by completion. A backend that closes stdin
 before the full prompt is delivered cannot succeed.
 
 All pipes are nonblocking and polled together, including backend stdin. Prompts

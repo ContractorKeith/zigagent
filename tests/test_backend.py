@@ -98,7 +98,8 @@ class BackendTests(CliCase):
              "--ignore-rules", "--dangerously-bypass-approvals-and-sandbox", "-c",
              'forced_login_method="chatgpt"', "--disable", "hooks", "--disable", "plugins",
              "--disable", "apps", "--disable", "memories", "--model", model, "--cd",
-             str(self.workspace), "--add-dir", str(context), "--add-dir", str(context), "-"]])
+             str(self.workspace.resolve()), "--add-dir", str(context.resolve()),
+             "--add-dir", str(context.resolve()), "-"]])
         self.assertEqual(sentinel.read_bytes(), before)
         self.assertEqual(self.log.with_name(self.log.name + ".stdin").read_text(), 'task " ; $(literal)\n☃')
         self.assertEqual(json.loads(self.log.with_name(self.log.name + ".env").read_text()),
@@ -153,9 +154,19 @@ class BackendTests(CliCase):
                 self.assert_failure(scenario, "protocol_error")
 
     def test_failure_events_and_nonzero_exit(self):
-        for scenario in ("failed", "turn_failed", "error_event", "tool_failed", "patch_failed"):
+        for scenario in ("failed", "turn_failed", "error_event"):
             with self.subTest(scenario=scenario):
                 self.assert_failure(scenario, "backend_failed")
+
+    def test_intermediate_tool_failures_do_not_override_completed_turn(self):
+        for scenario in ("recovered_tool", "tool_failed", "patch_failed"):
+            p, value = self.run_fake(scenario)
+            self.assertEqual(p.returncode, 0, value)
+            self.assertEqual(value["status"], "completed")
+            self.assertEqual(value["verification"]["status"], "not_requested")
+            self.assertIsNone(value["error"])
+            if scenario == "recovered_tool":
+                self.assertEqual(value["summary"], "fixed and retested")
 
     def test_event_limit(self):
         self.assert_failure("large_event", "event_too_large", 1, "--event-limit", "100")

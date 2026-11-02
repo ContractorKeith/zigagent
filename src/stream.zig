@@ -105,12 +105,8 @@ pub const Events = struct {
                 self.protocol_error = true;
                 return;
             }
-            if (field(item, "status")) |status| {
-                if (status == .string and std.mem.eql(u8, status.string, "failed")) self.failed = true;
-            }
-            if (field(item, "exit_code")) |code| {
-                if (code == .integer and code.integer != 0) self.failed = true;
-            }
+            // Tool attempts may fail before the agent recovers. Final turn/exit
+            // status decides completion; the caller check decides verification.
             if (std.mem.eql(u8, item_type.string, "error")) self.failed = true;
             if (std.mem.eql(u8, item_type.string, "agent_message")) {
                 const text = field(item, "text") orelse {
