@@ -142,14 +142,20 @@ case "$1:$2" in
   *) exit 1 ;;
 esac
 """)
-        p = self.invoke(*self.args('touch MUST_NOT_START', '--timeout', '1'))
-        v = json.loads(p.stdout)
-        self.assertEqual(p.returncode, 124, v)
-        self.assertEqual(v['summary'], 'synthetic completion')
-        self.assertEqual(v['status'], 'timed_out')
-        self.assertEqual(v['verification']['status'], 'not_run')
-        self.assertEqual(v['error']['code'], 'timed_out')
-        self.assertFalse((self.workspace / 'MUST_NOT_START').exists())
+        # Vary startup delay; scheduling decides which phase hits the deadline.
+        # No summary or phase-specific prose is guaranteed.
+        for delay in (0, .08, 1.1):
+            with self.subTest(startup_delay=delay):
+                cat = self.root / 'cat'
+                cat.write_text(f'#!/bin/sh\nsleep {delay}\nexec /bin/cat "$@"\n')
+                cat.chmod(0o755)
+                p = self.invoke(*self.args('touch MUST_NOT_START', '--timeout', '1'))
+                v = json.loads(p.stdout)
+                self.assertEqual(p.returncode, 124, v)
+                self.assertEqual(v['status'], 'timed_out')
+                self.assertEqual(v['verification']['status'], 'not_run')
+                self.assertEqual(v['error']['code'], 'timed_out')
+                self.assertFalse((self.workspace / 'MUST_NOT_START').exists())
 
     def test_shared_budget_is_not_reset_for_check(self):
         self.env['ZIGAGENT_TEST_SCENARIO'] = 'slow_edit'

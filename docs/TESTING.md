@@ -123,6 +123,10 @@ macOS CI failure: the backend correctly timed out before the check handoff.
 The same probe passes with assertions on timeout status/exit, verification
 `not_run`, and the absent check marker. Scheduling determines the timeout phase;
 this test does not claim deterministic coverage of the handoff branch.
+The native bd06663 gate exposed a second assumption: completion can arrive
+after the deadline, leaving an empty summary. A 1.1-second delayed `cat`
+reproduced that assertion failure. The test now includes 0/0.08/1.1-second
+delays and asserts only the timeout/no-launch contract, not summary contents.
 
 Review follow-up (#21): a fake backend renames the workspace and creates a
 replacement at its old path. The new check first read replacement content;
