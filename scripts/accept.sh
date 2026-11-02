@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [[ -n "${ZIGAGENT_MACOS_SDK:-}" && "${ZIGAGENT_SDK_WRAPPED:-}" != 1 ]]; then
+  exec bash scripts/with-macos-sdk.sh bash scripts/accept.sh
+fi
 if [[ "$(zig version)" != 0.15.2 ]]; then
   echo 'accept: Zig 0.15.2 is required' >&2
   exit 1

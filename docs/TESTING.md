@@ -1,5 +1,21 @@
 # M1 testing
 
+## macOS SDK compatibility
+
+Zig 0.15.2 cannot link its native build runner against the SDK 26.5 libSystem stubs on the Mac Studio (arm64e target matching). The installed SDK 15.4 was verified with M0: 6 unit and 23 black-box tests passed. M1 must be verified separately. `SDKROOT` alone does not change Zig's xcrun discovery, and `zig build --sysroot` does not select the build runner SDK.
+
+Select an existing compatible SDK for this process only:
+
+```bash
+ZIGAGENT_MACOS_SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk bash scripts/accept.sh
+# For a direct build with that SDK:
+ZIGAGENT_MACOS_SDK=/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk bash scripts/with-macos-sdk.sh zig build
+```
+
+The helper temporarily overrides only `xcrun --sdk macosx --show-sdk-path`, delegates other xcrun commands to `/usr/bin/xcrun`, and removes the shim after the command. It does not install an SDK or change system settings, HOME, CODEX_HOME, or shell configuration. Without the variable, normal host SDK discovery remains unchanged. The example SDK path must actually exist; choose an installed compatible SDK rather than downloading one implicitly. CI's macos-15 SDK works without this override.
+
+## Gate
+
 Run `bash scripts/accept.sh` with Zig 0.15.2 on PATH. The gate rejects other compiler versions, checks `zig fmt`, runs `zig build test`, builds `zig-out/bin/zigagent`, then runs Python unittest discovery against that binary. Build/cache output stays on disk in the checkout (`.zig-cache`, `zig-out`). Python is test-only. CI runs this exact command on native Ubuntu x86_64 and macOS arm64 hosts, with a checksum-verified official compiler. No model or credential access occurs.
 
 The local Linux compiler executable installed for M0 is:

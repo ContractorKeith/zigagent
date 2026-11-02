@@ -6,6 +6,8 @@ M0 merged via [PR #6](https://github.com/ContractorKeith/zigagent/pull/6). M1 ad
 
 ## Build and test
 
+On newer macOS SDKs, pinned Zig may need an installed compatible SDK selected for the build process; see [SDK setup](docs/TESTING.md#macos-sdk-compatibility). No system configuration change is needed.
+
 Requires Python 3 for tests/toolchain setup and Zig **0.15.2** for builds. The native binary has no Python dependency.
 
 ```bash
