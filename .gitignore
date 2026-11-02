@@ -4,3 +4,4 @@ zig-out/
 dist/
 *.core
 .DS_Store
+__pycache__/

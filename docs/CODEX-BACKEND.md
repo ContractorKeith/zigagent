@@ -1,4 +1,4 @@
-# Codex 0.166.0 backend contract (M3)
+# Codex 0.166.0 backend contract
 
 Evidence inspected on Linux x86_64, 2026-11-02: `codex --version` returned
 `codex-cli 0.166.0`; `codex --help`, `codex exec --help` and `codex features list`

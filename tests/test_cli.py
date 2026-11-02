@@ -18,7 +18,7 @@ class ContractTests(CliCase):
     def test_help_and_version_without_backend(self):
         self.env["PATH"] = str(self.root)
         self.env["ZIGAGENT_MODEL"] = "\udcff"  # ignored by help/version
-        for args, expected in [(("--help",), b"Usage:"), (("--version",), b"zigagent 0.1.0-dev\n"),
+        for args, expected in [(("--help",), b"Usage:"), (("--version",), b"zigagent 0.1.0\n"),
                                (("run", "--help"), b"--codex"), (("login", "--help"), b"--login-timeout")]:
             with self.subTest(args=args):
                 p = self.invoke(*args)

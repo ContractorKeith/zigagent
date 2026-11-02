@@ -84,6 +84,9 @@ def main():
         Path(log + ".stdin").write_bytes(prompt)
         Path(log + ".env").write_text(json.dumps({key: key in os.environ for key in
                                                 ("OPENAI_API_KEY", "CODEX_API_KEY")}))
+    if scenario == "live_fix":
+        Path(args[args.index("--cd") + 1], "calculator.py").write_text(
+            "def add(a, b):\n    return a + b\n")
     if scenario == "replace_workspace":
         workspace = Path(args[args.index("--cd") + 1])
         (workspace / "identity").write_text("original")

@@ -19,6 +19,15 @@ pub fn build(b: *std.Build) void {
     module.link_libc = true;
     const exe = b.addExecutable(.{ .name = "zigagent", .root_module = module });
     b.installArtifact(exe);
+    const measure_module = b.createModule(.{
+        .root_source_file = b.path("scripts/measure.zig"),
+        .target = target,
+        .optimize = .ReleaseSmall,
+    });
+    measure_module.link_libc = true;
+    const measure = b.addExecutable(.{ .name = "zigagent-measure", .root_module = measure_module });
+    const install_measure = b.addInstallArtifact(measure, .{});
+    b.step("benchmark-tool", "Build maintainer-only RSS/startup launcher").dependOn(&install_measure.step);
     const tests = b.addTest(.{ .root_module = module });
     b.step("test", "Run unit tests").dependOn(&b.addRunArtifact(tests).step);
 }
