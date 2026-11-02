@@ -84,9 +84,9 @@ class LifecycleTests(CliCase):
         p = self.invoke('login', '--no-input')
         self.assertEqual(p.returncode, 4)
 
-    def wait_file(self, suffix):
+    def wait_file(self, suffix, timeout=4):
         path = self.log.with_name(self.log.name + suffix)
-        end = time.monotonic() + 4
+        end = time.monotonic() + timeout
         while not path.exists() and time.monotonic() < end:
             time.sleep(.01)
         self.assertTrue(path.exists(), str(path))
@@ -176,13 +176,17 @@ class LifecycleTests(CliCase):
 
     def test_oversized_partial_event_stops_live_backend_clearly(self):
         p = self.start_work('partial_hang', '--event-limit', '100')
-        out, err = p.communicate(timeout=3)
+        self.wait_file('.event-ready', timeout=8)
+        out, err = p.communicate(timeout=4)
         self.assertEqual(p.returncode, 1, (out, err))
         self.assertEqual(json.loads(out)['error']['code'], 'event_too_large')
 
     def test_malformed_event_stops_live_backend_clearly(self):
+        self.env['ZIGAGENT_TEST_STARTUP_DELAY'] = '.6'
         p = self.start_work('malformed_hang')
-        out, err = p.communicate(timeout=3)
+        # Measure protocol shutdown separately from four backend startups.
+        self.wait_file('.event-ready', timeout=8)
+        out, err = p.communicate(timeout=4)
         self.assertEqual(p.returncode, 1, (out, err))
         self.assertEqual(json.loads(out)['error']['code'], 'protocol_error')
 
@@ -325,6 +329,7 @@ class LifecycleTests(CliCase):
 
     def test_partial_event_at_stdout_eof_stops_live_backend_clearly(self):
         p = self.start_work('partial_closed_hang')
-        out, err = p.communicate(timeout=3)
+        self.wait_file('.event-ready', timeout=8)
+        out, err = p.communicate(timeout=4)
         self.assertEqual(p.returncode, 1, (out, err))
         self.assertEqual(json.loads(out)['error']['code'], 'protocol_error')

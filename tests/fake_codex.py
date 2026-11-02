@@ -14,6 +14,7 @@ def event(kind, **fields):
 
 
 def main():
+    time.sleep(float(os.environ.get("ZIGAGENT_TEST_STARTUP_DELAY", "0")))
     args = sys.argv[1:]
     log = os.environ.get("ZIGAGENT_TEST_LOG")
     if log:
@@ -100,6 +101,8 @@ def main():
         Path(log + ".ready").write_text("ready")
         if scenario == "owned_hang":
             time.sleep(20)
+    if scenario in ("partial_closed_hang", "partial_hang", "malformed_hang"):
+        Path(log + ".event-ready").write_text("ready to emit invalid event")
     if scenario == "partial_closed_hang":
         os.write(1, b'{"type":"turn.completed"}')
         os.close(1)

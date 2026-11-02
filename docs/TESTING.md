@@ -77,3 +77,11 @@ checks remain explicitly unimplemented; packaging/live release evidence is M4.
 Fixture tests do not establish release readiness.
 
 Standards follow-up: result-delivery cancellation and stale-PID teardown tests both failed before fixes. Result writes now return 130/143 when cancelled; a partially emitted envelope is not followed by another. Test teardown never signals recorded backend IDs after reaping; synthetic survivors on a failed test self-exit within 20 seconds.
+
+Live invalid-event tests wait for a bounded fixture readiness marker before
+measuring shutdown, separating four backend startups from the cleanup budget.
+The malformed-event case injects 0.6 seconds per startup through the fixture-only
+`ZIGAGENT_TEST_STARTUP_DELAY`; the old three-second whole-run assertion failed
+with that delay, while the synchronized shutdown assertion passes. Ten isolated
+native Mac diagnostic trials passed at 1.57–1.94 seconds total; they did not
+establish the cause of the earlier intermittent full-gate timeout.
