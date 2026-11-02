@@ -1,36 +1,68 @@
 const std = @import("std");
 const cli = @import("cli.zig");
 const result = @import("result.zig");
+const process = @import("process.zig");
 const backend = @import("backend.zig");
+const c = @cImport(@cInclude("fcntl.h"));
 
-fn writeAll(fd: std.posix.fd_t, bytes: []const u8) !void {
+fn writeAll(fd: std.posix.fd_t, bytes: []const u8, cancellable: bool) !void {
+    // Closed inherited descriptors are caller errors, not unreachable states.
+    const flags = c.fcntl(fd, c.F_GETFL);
+    if (flags < 0 or c.fcntl(fd, c.F_SETFL, flags | c.O_NONBLOCK) < 0) return error.OutputClosed;
+    defer _ = c.fcntl(fd, c.F_SETFL, flags);
+    var deadline = try process.Deadline.init(2);
     var offset: usize = 0;
-    while (offset < bytes.len) {
-        const n = try std.posix.write(fd, bytes[offset..]);
+    while (offset < bytes.len and !deadline.expired()) {
+        if (cancellable) try process.checkCancellation();
+        const n = std.posix.write(fd, bytes[offset..]) catch |err| switch (err) {
+            error.WouldBlock => {
+                var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = std.posix.POLL.OUT, .revents = 0 }};
+                _ = try std.posix.poll(&fds, 20);
+                continue;
+            },
+            else => return err,
+        };
         if (n == 0) return error.OutputClosed;
         offset += n;
     }
+    if (cancellable) try process.checkCancellation();
+    if (offset != bytes.len) return error.OutputClosed;
+}
+
+fn outputFailure(err: anyerror) noreturn {
+    std.process.exit(switch (err) {
+        error.Interrupted => 130,
+        error.Terminated => 143,
+        else => 1,
+    });
+}
+
+fn writeResult(fd: std.posix.fd_t, bytes: []const u8, exit_code: u8) void {
+    // An already-cancelled run still gets its one bounded result. A new
+    // cancellation during other output stops delivery without a second envelope.
+    writeAll(fd, bytes, exit_code != 130 and exit_code != 143) catch |err| outputFailure(err);
 }
 
 fn emit(allocator: std.mem.Allocator, value: result.Result, json: bool, exit_code: u8) noreturn {
     if (json) {
         const bytes = std.json.Stringify.valueAlloc(allocator, value, .{}) catch std.process.exit(1);
-        writeAll(std.posix.STDOUT_FILENO, bytes) catch std.process.exit(1);
-        writeAll(std.posix.STDOUT_FILENO, "\n") catch std.process.exit(1);
+        writeResult(std.posix.STDOUT_FILENO, bytes, exit_code);
+        writeResult(std.posix.STDOUT_FILENO, "\n", exit_code);
     } else if (value.@"error") |err| {
-        writeAll(std.posix.STDERR_FILENO, err.code) catch std.process.exit(1);
-        writeAll(std.posix.STDERR_FILENO, ": ") catch std.process.exit(1);
-        writeAll(std.posix.STDERR_FILENO, err.message) catch std.process.exit(1);
-        writeAll(std.posix.STDERR_FILENO, "\n") catch std.process.exit(1);
+        writeResult(std.posix.STDERR_FILENO, err.code, exit_code);
+        writeResult(std.posix.STDERR_FILENO, ": ", exit_code);
+        writeResult(std.posix.STDERR_FILENO, err.message, exit_code);
+        writeResult(std.posix.STDERR_FILENO, "\n", exit_code);
     } else {
-        writeAll(std.posix.STDOUT_FILENO, value.summary) catch std.process.exit(1);
-        writeAll(std.posix.STDOUT_FILENO, "\n") catch std.process.exit(1);
+        writeResult(std.posix.STDOUT_FILENO, value.summary, exit_code);
+        writeResult(std.posix.STDOUT_FILENO, "\n", exit_code);
     }
     std.process.exit(exit_code);
 }
 
 pub fn main() void {
     std.posix.sigaction(std.posix.SIG.PIPE, &.{ .handler = .{ .handler = std.posix.SIG.IGN }, .mask = std.posix.sigemptyset(), .flags = 0 }, null);
+    process.installSignals();
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -51,7 +83,7 @@ pub fn main() void {
         else => null,
     };
     if (text) |bytes| {
-        writeAll(std.posix.STDOUT_FILENO, bytes) catch std.process.exit(1);
+        writeAll(std.posix.STDOUT_FILENO, bytes, true) catch |err| outputFailure(err);
         return;
     }
     var value: result.Result = .{};
@@ -61,7 +93,16 @@ pub fn main() void {
         value.@"error" = .{ .code = "usage_error", .message = "Workspace and additional context paths must be accessible directories." };
         emit(allocator, value, json, 2);
     };
-    const exit_code = backend.run(allocator, opts, &value) catch blk: {
+    const exit_code = backend.run(allocator, opts, &value) catch |err| blk: {
+        switch (err) {
+            error.Interrupted, error.Terminated => {
+                value.status = .cancelled;
+                value.@"error" = .{ .code = "cancelled", .message = "Cancelled; edits are preserved." };
+                break :blk @as(u8, if (err == error.Interrupted) 130 else 143);
+            },
+            error.OutputClosed => std.process.exit(1),
+            else => {},
+        }
         value.@"error" = .{ .code = "backend_failed", .message = "Backend supervision failed; edits are preserved." };
         break :blk @as(u8, 1);
     };

@@ -123,12 +123,12 @@ fn directory(path: []const u8) error{Usage}!void {
 }
 
 pub const help =
-    \\zigagent — Codex supervisor (M1 controlled backend)
+    \\zigagent — Codex supervisor (M2 bounded lifecycle)
     \\Usage: zigagent run [options] [PROMPT|-]
     \\       zigagent login [--login-timeout SECONDS] [--no-input]
     \\       zigagent --help
     \\       zigagent --version
-    \\Use run --help or login --help for options. Interactive login and caller checks follow in M2/M3.
+    \\Use run --help or login --help for options. Terminal login is supported; caller checks follow in M3.
     \\
 ;
 pub const run_help =
@@ -155,7 +155,7 @@ pub const login_help =
     \\  --login-timeout SECONDS  Positive integer (default: 300; max: 86400)
     \\  --no-input               Disable login interaction
     \\  --help                   Show this help without a backend
-    \\Interactive login is unimplemented until M2; run codex login separately.
+    \\Official Codex login requires a controlling terminal; verifies ChatGPT authentication.
     \\
 ;
 

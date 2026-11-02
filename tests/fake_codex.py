@@ -2,6 +2,7 @@
 """Synthetic backend only: no model, configuration, or credential-file access."""
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -13,6 +14,7 @@ def event(kind, **fields):
 
 
 def main():
+    time.sleep(float(os.environ.get("ZIGAGENT_TEST_STARTUP_DELAY", "0")))
     args = sys.argv[1:]
     log = os.environ.get("ZIGAGENT_TEST_LOG")
     if log:
@@ -36,7 +38,26 @@ def main():
         print(" ".join(flag + "-unsupported" for flag in help_text.split())
               if scenario == "capability_prefix" else help_text)
         return 0
+    if args == ["login"]:
+        if scenario == "login_handled_interrupt":
+            signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))
+        assert os.isatty(0), "login stdin must be the controlling terminal"
+        print("LOGIN READY", flush=True)
+        if scenario == "login_hang":
+            time.sleep(20)
+        if scenario == "login_slow":
+            time.sleep(.8)
+        assert sys.stdin.readline().strip() == "confirm"
+        Path(log + ".login").write_text("synthetic login completed")
+        return 0
     if args == ["login", "status"]:
+        if scenario.startswith("login_"):
+            logged_in = Path(log + ".login").exists()
+            if logged_in and scenario == "login_post_hang":
+                time.sleep(20)
+            print("Logged in using ChatGPT" if logged_in and scenario != "login_wrong_auth"
+                  else "Not logged in", file=sys.stderr)
+            return 0 if logged_in and scenario != "login_wrong_auth" else 1
         if scenario == "auth_hang":
             time.sleep(20)
         text, code = {
@@ -63,6 +84,37 @@ def main():
         Path(log + ".stdin").write_bytes(prompt)
         Path(log + ".env").write_text(json.dumps({key: key in os.environ for key in
                                                 ("OPENAI_API_KEY", "CODEX_API_KEY")}))
+    if scenario == "midrun_auth":
+        Path(args[args.index("--cd") + 1], "preserved-edit").write_text("keep edits")
+        event("error", message="authentication expired")
+        return 1
+    if scenario.startswith("owned_"):
+        Path(args[args.index("--cd") + 1], "preserved-edit").write_text("keep edits")
+        def term(sig, frame):
+            Path(log + ".term").write_text("TERM received")
+        signal.signal(signal.SIGTERM, term)
+        child_code = ("import os,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                      + ("os.close(1); os.close(2); " if scenario == "owned_exit_closed" else "")
+                      + ("time.sleep(.02)" if scenario == "owned_simultaneous" else "time.sleep(20)"))
+        child = subprocess.Popen([sys.executable, "-c", child_code])
+        Path(log + ".pids").write_text(json.dumps([os.getpid(), child.pid]))
+        # Ensure handlers are installed before signalling or exiting the leader.
+        time.sleep(.1)
+        Path(log + ".ready").write_text("ready")
+        if scenario == "owned_hang":
+            time.sleep(20)
+    if scenario in ("partial_closed_hang", "partial_hang", "malformed_hang"):
+        Path(log + ".event-ready").write_text("ready to emit invalid event")
+    if scenario == "partial_closed_hang":
+        os.write(1, b'{"type":"turn.completed"}')
+        os.close(1)
+        time.sleep(20)
+    if scenario == "partial_hang":
+        os.write(1, b"x" * 200)
+        time.sleep(20)
+    if scenario == "malformed_hang":
+        print("not JSON", flush=True)
+        time.sleep(20)
     if scenario == "exec_hang":
         time.sleep(20)
     if scenario == "closed_pipes_hang":
@@ -91,7 +143,7 @@ def main():
             os.write(2, b"prefix\xff\xe2\x98\x83")
         if scenario == "unknown":
             event("future.event", ignored={"extra": True})
-        text = "☃" * 300 if scenario == "summary_limit" else "synthetic completion"
+        text = "x" * 500000 if scenario == "large_summary" else "☃" * 300 if scenario == "summary_limit" else "synthetic completion"
         if scenario == "chunked":
             data = (json.dumps({"type": "item.completed", "item": {
                 "type": "agent_message", "text": text}}) + "\n").encode()
