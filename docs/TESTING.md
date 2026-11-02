@@ -1,8 +1,8 @@
-# M2 testing
+# M3 testing
 
 ## macOS SDK compatibility
 
-Zig 0.15.2 cannot link its native build runner against the SDK 26.5 libSystem stubs on the Mac Studio (arm64e target matching). The installed SDK 15.4 was verified with M0: 6 unit and 23 black-box tests passed. M1 subsequently passed 7 unit and 44 black-box checks on both hosts; M2 native macOS acceptance remains parent-owned. `SDKROOT` alone does not change Zig's xcrun discovery, and `zig build --sysroot` does not select the build runner SDK.
+Zig 0.15.2 cannot link its native build runner against the SDK 26.5 libSystem stubs on the Mac Studio (arm64e target matching). The installed SDK 15.4 was verified with M0: 6 unit and 23 black-box tests passed. M1 subsequently passed 7 unit and 44 black-box checks on both hosts; M2 passed native acceptance on both hosts; M3 native macOS acceptance remains parent-owned. `SDKROOT` alone does not change Zig's xcrun discovery, and `zig build --sysroot` does not select the build runner SDK.
 
 Select an existing compatible SDK for this process only:
 
@@ -33,7 +33,7 @@ The local Linux compiler executable installed for M0 is:
 
 `tests/harness.py` makes a disposable directory for every test and captures stdout/stderr with a finite subprocess timeout. A fake `codex` is first on that test's PATH; explicit `--codex` also exercises a path containing spaces. No test changes HOME/CODEX_HOME, reads credentials, or calls a real model. Small fixture/log files live in the disposable directory. Compiler caches remain on disk in the checkout. Linux defaults to glibc 2.28 through Zig's bundled libc support: this avoids pinned Zig's inability to link the newer Arch host CRT `.sframe` relocations. The binary links OS libc; macOS uses its normal target.
 
-The gate runs **7 Zig unit tests and 70 Python black-box tests**. All 23 original M0 checks remain, adapting temporary unimplemented run/stdin expectations to delivered behavior. Twenty-one new backend checks cover strict versions and failed/missing probes; capability checks; ChatGPT/API-key/logged-out/unexpected authentication; literal argv/path/model data; exact stdin forwarding and early closure rejection; unchanged synthetic config; API-key environment removal; 1 MiB prompt boundaries; terminal rejection; completion plus zero exit; malformed/partial/invalid UTF-8/oversized events; unknown events; terminal failures and recovered tool attempts; nonfatal warning items; completion usage shape and terminal ordering; exact capability tokens; duplicate completion; nonzero exit; concurrent saturation and bounded UTF-8-safe output. Deadline fixtures cover open prompt pipes, hanging version/help/auth/execution, closed output pipes with a live leader, and inherited descendant pipes.
+The gate runs **7 Zig unit tests and 83 Python black-box tests**. All 23 original M0 checks remain, adapting temporary unimplemented run/stdin expectations to delivered behavior. Twenty-one new backend checks cover strict versions and failed/missing probes; capability checks; ChatGPT/API-key/logged-out/unexpected authentication; literal argv/path/model data; exact stdin forwarding and early closure rejection; unchanged synthetic config; API-key environment removal; 1 MiB prompt boundaries; terminal rejection; completion plus zero exit; malformed/partial/invalid UTF-8/oversized events; unknown events; terminal failures and recovered tool attempts; nonfatal warning items; completion usage shape and terminal ordering; exact capability tokens; duplicate completion; nonzero exit; concurrent saturation and bounded UTF-8-safe output. Deadline fixtures cover open prompt pipes, hanging version/help/auth/execution, closed output pipes with a live leader, and inherited descendant pipes.
 
 `tests/fake_codex.py` uses only synthetic data. `ZIGAGENT_TEST_LOG`, `ZIGAGENT_TEST_SCENARIO` and `ZIGAGENT_TEST_VERSION` configure that fixture, never the shipped app. The argv/config test snapshots a disposable project's synthetic `.codex/config.toml` and checks exact suppression flags; it makes no claim to prove the actual Codex implementation's config behavior. Installed 0.166.0 help/features/login-status inspection and official documentation establish supported controls; fake events provide wrapper evidence, not live task compatibility evidence.
 
@@ -69,11 +69,13 @@ partial event followed by stdout EOF while the backend stayed alive first hung;
 finishing JSONL framing on stdout EOF made it fail promptly as protocol_error.
 All tests exercise the public compiled-process seam; no private lifecycle mocks.
 
-Linux acceptance passes. An aarch64-macos cross-build establishes compilation
-only; native macOS execution, both-host CI, parent full-diff review, independent
-review and fresh attack remain integration gates. No real login or task-bearing
-Codex call was made. M0/M1 are merged; M2 is delivered in this branch. M3 caller
-checks remain explicitly unimplemented; packaging/live release evidence is M4.
+M2 Linux and native macOS acceptance passed before merge. An M3
+aarch64-macos cross-build establishes compilation only; native macOS execution,
+both-host CI, parent full-diff review, independent review and fresh attack
+remain M3 integration gates. No real login or task-bearing
+Codex call was made. M0–M2 are merged on main; M3 caller checks are delivered in this branch.
+M3 native macOS execution and remote CI remain parent-owned; packaging/live
+release evidence is M4.
 Fixture tests do not establish release readiness.
 
 Standards follow-up: result-delivery cancellation and stale-PID teardown tests both failed before fixes. Result writes now return 130/143 when cancelled; a partially emitted envelope is not followed by another. Test teardown never signals recorded backend IDs after reaping; synthetic survivors on a failed test self-exit within 20 seconds.
@@ -87,3 +89,59 @@ native Mac diagnostic trials passed at 1.57–1.94 seconds total; they did not
 establish the cause of the earlier intermittent full-gate timeout.
 
 Attack follow-up: four tests first reproduced closed-stdin login failure, closed-stdout login/panic, terminal Ctrl-C handled as exit 130 being misclassified, and closed-stderr output panic. Terminal descriptors now stay above 2, child setup reserves a missing stdin slot, login checks caller output before opening its terminal, and output fcntl errors return failure. Login preserves handled 130/143 exits as cancellation. Closed-stderr JSON runs remain supported.
+
+M3 adds 13 methods in `tests/test_checks.py` and replaces the temporary M0 check
+rejection assertion with a passing check. Fixtures exercise a deterministic
+scratch Git repository edit followed by pass/fail/no check, preserved staged
+content with no automatic commits/retries, actual exit status and shell errors,
+EOF stdin, inherited check environment, literal malicious model/prompt/path
+strings, combined output overflow/UTF-8 replacement, the JSON/plain failure
+matrix, backend cancellation without check launch, exhausted and remaining
+shared budgets (the exhausted handoff uses a shell fake to exclude Python
+startup latency), check timeout/cancellation and ordinary descendant cleanup
+with retained or closed pipes. Readiness markers precede cancellation; fixture
+survivors self-expire in 20 seconds, and tests never signal stale recorded PIDs.
+
+M3 red/green evidence: the first completion/check test failed on the M2 binary
+with `unimplemented` instead of exit 0. Plain verdict/output assertions then
+failed until rendering was added. An inherited synthetic environment test
+returned check_failed/5 before Codex-only filtering was separated from caller
+check inheritance. The usage/check matrix initially reported not_requested on
+invalid numeric arguments; it now retains not_run for a requested check.
+All evidence uses the compiled public CLI. No real authentication or model call
+was performed. Linux acceptance is recorded in this branch's draft PR; parent
+owns native Mac/remote validation, independent review and adversarial testing.
+
+Self-review regression: removing a workspace symlink during the fake agent run
+first made check setup fail with backend_failed/1. Reusing the canonical path
+already passed to Codex fixes the handoff and keeps both workloads in the same
+workspace. The new CLI assertion passes after the fix.
+
+
+Nine M3 test methods were also run against an unchanged M2 binary built from
+`git archive da5da400922d9dc107a678fab4dd97529083e935` in a disposable source
+directory: all nine failed (11 assertion/subtest failures, zero setup errors)
+because checks were rejected as unimplemented. The archive was removed after
+the run; no extra worktree was created.
+
+Reproduce a synthetic edit and passing caller check without login/model access:
+
+```bash
+python3 - <<'PYTHON'
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+with tempfile.TemporaryDirectory(prefix="zigagent-example-") as scratch:
+    env = dict(os.environ, ZIGAGENT_TEST_SCENARIO="edit",
+               ZIGAGENT_TEST_LOG=str(Path(scratch) / "argv.jsonl"))
+    subprocess.run([
+        "./zig-out/bin/zigagent", "run", "--model", "test-model", "--no-input",
+        "--codex", str(Path("tests/fake_codex.py").resolve()),
+        "--workspace", scratch, "--json", "--check",
+        'test "$(cat preserved-edit)" = "keep edits" && printf verified',
+        "Fix the parser",
+    ], env=env, check=True)
+PYTHON
+```

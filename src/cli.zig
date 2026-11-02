@@ -24,13 +24,30 @@ fn eq(a: []const u8, b: []const u8) bool {
     return std.mem.eql(u8, a, b);
 }
 
-// Discover output mode even when parsing fails before reaching --json.
+// Preserve requested result mode/verification even on invalid arguments.
+fn wantsOption(args: []const []const u8, option: []const u8) bool {
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (eq(arg, "--")) break;
+        if (eq(arg, option)) return true;
+        // Values are literal data, including a value named --json/--check.
+        if (eq(arg, "--model") or eq(arg, "--workspace") or eq(arg, "--add-dir") or
+            eq(arg, "--check") or eq(arg, "--timeout") or eq(arg, "--login-timeout") or
+            eq(arg, "--output-limit") or eq(arg, "--event-limit") or eq(arg, "--codex")) i += 1;
+    }
+    return false;
+}
 pub fn wantsJson(args: []const []const u8) bool {
+    // A malformed option value may itself be --json; preserve the error mode.
     for (args) |arg| {
         if (eq(arg, "--")) break;
         if (eq(arg, "--json")) return true;
     }
     return false;
+}
+pub fn wantsCheck(args: []const []const u8) bool {
+    return args.len != 0 and eq(args[0], "run") and wantsOption(args, "--check");
 }
 
 fn positive(value: []const u8, max: u32) ParseError!u32 {
@@ -123,12 +140,12 @@ fn directory(path: []const u8) error{Usage}!void {
 }
 
 pub const help =
-    \\zigagent — Codex supervisor (M2 bounded lifecycle)
+    \\zigagent — Codex supervisor (M3 caller verification)
     \\Usage: zigagent run [options] [PROMPT|-]
     \\       zigagent login [--login-timeout SECONDS] [--no-input]
     \\       zigagent --help
     \\       zigagent --version
-    \\Use run --help or login --help for options. Terminal login is supported; caller checks follow in M3.
+    \\Use run --help or login --help for options. Terminal login and optional caller checks are supported.
     \\
 ;
 pub const run_help =
@@ -136,7 +153,7 @@ pub const run_help =
     \\  --model NAME             Required; overrides ZIGAGENT_MODEL
     \\  --workspace PATH         Working directory (default: current directory)
     \\  --add-dir PATH           Repeatable context directory, not an access boundary
-    \\  --check COMMAND          Caller check through /bin/sh -c (M3)
+    \\  --check COMMAND          Caller check through /bin/sh -c
     \\  --json                   One versioned result on stdout
     \\  --no-input               Disable login interaction
     \\  --timeout SECONDS        Execution/preflight deadline (default: 600; max: 86400)
@@ -147,7 +164,7 @@ pub const run_help =
     \\  --help                   Show this help without a backend
     \\All limits are positive integers. -- ends option parsing; prompt is one argument.
     \\PROMPT is capped at 1 MiB. - or omitted prompt selects nonterminal stdin.
-    \\--check is rejected before execution until M3.
+    \\--check shares the execution deadline; nonzero check exit returns 5.
     \\
 ;
 pub const login_help =

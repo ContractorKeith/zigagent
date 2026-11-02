@@ -91,6 +91,10 @@ pub const Capture = struct {
     // Auth/version recognition is independent of the caller's diagnostic limit.
     probe_stderr: stream.Buffer,
     events: ?*stream.Events = null,
+    cwd: ?[]const u8 = null,
+    combined_output: bool = false,
+    codex_environment: bool = true,
+    started: bool = false,
     terminal: ?posix.fd_t = null,
     terminal_output: ?posix.fd_t = null,
     timed_out: bool = false,
@@ -127,15 +131,24 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
     defer if (missing_stdin) posix.close(0);
     var child = std.process.Child.init(argv, a);
     child.pgid = 0;
+    child.cwd = capture.cwd;
     child.stdin_behavior = if (capture.terminal != null) .Inherit else if (input != null) .Pipe else .Ignore;
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Pipe;
     // Prevent API-key environment overrides from changing the checked login mode.
     var env = try std.process.getEnvMap(a);
     defer env.deinit();
-    env.remove("CODEX_API_KEY");
-    env.remove("OPENAI_API_KEY");
+    if (capture.codex_environment) {
+        env.remove("CODEX_API_KEY");
+        env.remove("OPENAI_API_KEY");
+    }
     child.env_map = &env;
+    // Environment/setup time also consumes the shared deadline.
+    try checkCaller();
+    if (deadline.expired()) {
+        capture.timed_out = true;
+        return;
+    }
     // Child has no arbitrary-fd stdin option. Restore caller stdin immediately
     // after spawn; only official login inherits the controlling terminal.
     if (capture.terminal) |tty| {
@@ -148,6 +161,7 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
         }
         try child.spawn();
     } else try child.spawn();
+    capture.started = true;
     const foreground = if (capture.terminal) |tty| c.tcgetpgrp(tty) else -1;
     if (capture.terminal) |tty| {
         // Both sides establish the same group, closing the fork/setpgid race.
@@ -252,6 +266,8 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, input: ?[]const u8, d
                 }
             } else if (capture.terminal_output) |tty| {
                 _ = posix.write(tty, chunk[0..n]) catch 0;
+            } else if (capture.combined_output) {
+                capture.diagnostics.tail(chunk[0..n]);
             } else if (i == 0) {
                 if (capture.events) |events| events.feed(chunk[0..n]) else capture.output.prefix(chunk[0..n]);
             } else {

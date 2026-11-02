@@ -15,7 +15,6 @@ fn diagnostics(value: *Result, capture: *process.Capture) void {
 
 pub fn run(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
     if (opts.command == .login) return login(a, opts, value);
-    if (opts.check != null) return fail(value, "unimplemented", "Caller checks are M3; --check is rejected before backend execution.", 1);
     var preflight = try process.Deadline.init(opts.timeout);
     const prompt = if (opts.prompt == null or std.mem.eql(u8, opts.prompt.?, "-"))
         process.readPrompt(a, cli.prompt_limit, &preflight) catch |err| {
@@ -58,16 +57,17 @@ pub fn run(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
         },
         .failed => return fail(value, "authentication_failed", "Unexpected Codex login status; ChatGPT authentication is required.", 4),
     }
+    var execution = try process.Deadline.init(opts.timeout);
     // Successful probe chatter is not a run diagnostic.
     value.diagnostics = .{};
+    const workspace = try std.fs.cwd().realpathAlloc(a, opts.workspace);
     var argv: std.ArrayList([]const u8) = .empty;
-    try argv.appendSlice(a, &.{ opts.codex, "exec", "--json", "--ephemeral", "--color", "never", "--ignore-user-config", "--ignore-rules", "--dangerously-bypass-approvals-and-sandbox", "-c", "forced_login_method=\"chatgpt\"", "--disable", "hooks", "--disable", "plugins", "--disable", "apps", "--disable", "memories", "--model", opts.model.?, "--cd", try std.fs.cwd().realpathAlloc(a, opts.workspace) });
+    try argv.appendSlice(a, &.{ opts.codex, "exec", "--json", "--ephemeral", "--color", "never", "--ignore-user-config", "--ignore-rules", "--dangerously-bypass-approvals-and-sandbox", "-c", "forced_login_method=\"chatgpt\"", "--disable", "hooks", "--disable", "plugins", "--disable", "apps", "--disable", "memories", "--model", opts.model.?, "--cd", workspace });
     for (opts.add_dirs.items) |dir| try argv.appendSlice(a, &.{ "--add-dir", try std.fs.cwd().realpathAlloc(a, dir) });
     try argv.append(a, "-");
     var events = try stream.Events.init(a, opts.event_limit, opts.output_limit);
     var capture = try process.Capture.init(a, opts.output_limit);
     capture.events = &events;
-    var execution = try process.Deadline.init(opts.timeout);
     try process.run(a, argv.items, prompt, &execution, &capture);
     diagnostics(value, &capture);
     value.summary = events.summary.text();
@@ -77,8 +77,32 @@ pub fn run(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
     if (events.protocol_error) return fail(value, "protocol_error", "Malformed or incomplete backend JSONL.", 1);
     if (!capture.exit_zero or events.failed or capture.input_incomplete or capture.cleanup_incomplete) return fail(value, "backend_failed", "Backend exited unsuccessfully or emitted a failure; edits are preserved.", 1);
     if (!events.completed) return fail(value, "protocol_error", "Backend exited without a recognized completion event.", 1);
+    if (opts.check) |command| {
+        var check = try process.Capture.init(a, opts.output_limit);
+        check.cwd = workspace;
+        check.combined_output = true;
+        check.codex_environment = false;
+        process.run(a, &.{ "/bin/sh", "-c", command }, null, &execution, &check) catch |err| {
+            verification(value, &check);
+            return err;
+        };
+        verification(value, &check);
+        if (check.timed_out) return fail(value, "timed_out", "Caller check execution deadline exceeded; edits are preserved.", 124);
+        if (!check.exit_zero or check.cleanup_incomplete) return fail(value, "check_failed", "Caller check failed; edits are preserved.", 5);
+        value.verification.status = .passed;
+    }
     value.status = .completed;
     return 0;
+}
+
+// A started but interrupted check is failed with its observed exit (if any).
+// An exhausted deadline never spawns it and retains not_run.
+fn verification(value: *Result, capture: *process.Capture) void {
+    if (!capture.started) return;
+    value.verification.status = .failed;
+    value.verification.exit_code = if (capture.exit_code) |code| @as(i32, code) else null;
+    value.verification.output = capture.diagnostics.text();
+    value.verification.truncated = capture.diagnostics.truncated;
 }
 
 fn launchFailure(value: *Result, err: anyerror) anyerror!u8 {
