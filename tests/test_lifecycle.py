@@ -7,6 +7,7 @@ import signal
 import subprocess
 import termios
 import time
+from unittest import mock
 
 from harness import BINARY, CliCase
 
@@ -103,14 +104,8 @@ class LifecycleTests(CliCase):
             for pipe in (p.stdout, p.stderr):
                 if pipe and not pipe.closed:
                     pipe.close()
-            # A failing cleanup test must not leak even its synthetic descendants.
-            path = self.log.with_name(self.log.name + '.pids')
-            if path.exists():
-                for pid in json.loads(path.read_text()):
-                    try:
-                        os.kill(pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+            # Recorded backend PIDs may already be reaped/reused. Never signal
+            # them here; synthetic survivors self-exit within 20 seconds.
         self.addCleanup(cleanup)
         return p
 
@@ -239,6 +234,24 @@ class LifecycleTests(CliCase):
                 p.wait()
             p.stdout.close()
             p.stderr.close()
+
+    def test_result_delivery_honors_cancellation(self):
+        for sig, expected in ((signal.SIGINT, 130), (signal.SIGTERM, 143)):
+            p = self.start_work('large_summary', '--output-limit', '1048576')
+            self.assertTrue(select.select([p.stdout], [], [], 4)[0])
+            prefix = os.read(p.stdout.fileno(), 1)
+            p.send_signal(sig)
+            out, err = p.communicate(timeout=3)
+            self.assertEqual(p.returncode, expected, err)
+            self.assertLessEqual((prefix + out).count(b'\n'), 1)
+
+    def test_completed_fixture_cleanup_never_signals_recorded_pids(self):
+        p = self.start_work('owned_exit_closed')
+        out, err = p.communicate(timeout=3)
+        self.assertEqual(p.returncode, 0, (out, err))
+        with mock.patch('os.kill') as kill:
+            self.doCleanups()
+        kill.assert_not_called()
 
     def test_unrelated_auth_errors_on_terminal_never_login(self):
         for scenario in ('auth_failure', 'api_key', 'auth_false_logged_out'):

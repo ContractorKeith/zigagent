@@ -4,13 +4,14 @@ const result = @import("result.zig");
 const process = @import("process.zig");
 const backend = @import("backend.zig");
 
-fn writeAll(fd: std.posix.fd_t, bytes: []const u8) !void {
+fn writeAll(fd: std.posix.fd_t, bytes: []const u8, cancellable: bool) !void {
     const flags = try std.posix.fcntl(fd, std.posix.F.GETFL, 0);
     _ = try std.posix.fcntl(fd, std.posix.F.SETFL, flags | @as(u32, @bitCast(std.posix.O{ .NONBLOCK = true })));
     defer _ = std.posix.fcntl(fd, std.posix.F.SETFL, flags) catch 0;
     var deadline = try process.Deadline.init(2);
     var offset: usize = 0;
     while (offset < bytes.len and !deadline.expired()) {
+        if (cancellable) try process.checkCancellation();
         const n = std.posix.write(fd, bytes[offset..]) catch |err| switch (err) {
             error.WouldBlock => {
                 var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = std.posix.POLL.OUT, .revents = 0 }};
@@ -22,22 +23,37 @@ fn writeAll(fd: std.posix.fd_t, bytes: []const u8) !void {
         if (n == 0) return error.OutputClosed;
         offset += n;
     }
+    if (cancellable) try process.checkCancellation();
     if (offset != bytes.len) return error.OutputClosed;
+}
+
+fn outputFailure(err: anyerror) noreturn {
+    std.process.exit(switch (err) {
+        error.Interrupted => 130,
+        error.Terminated => 143,
+        else => 1,
+    });
+}
+
+fn writeResult(fd: std.posix.fd_t, bytes: []const u8, exit_code: u8) void {
+    // An already-cancelled run still gets its one bounded result. A new
+    // cancellation during other output stops delivery without a second envelope.
+    writeAll(fd, bytes, exit_code != 130 and exit_code != 143) catch |err| outputFailure(err);
 }
 
 fn emit(allocator: std.mem.Allocator, value: result.Result, json: bool, exit_code: u8) noreturn {
     if (json) {
         const bytes = std.json.Stringify.valueAlloc(allocator, value, .{}) catch std.process.exit(1);
-        writeAll(std.posix.STDOUT_FILENO, bytes) catch std.process.exit(1);
-        writeAll(std.posix.STDOUT_FILENO, "\n") catch std.process.exit(1);
+        writeResult(std.posix.STDOUT_FILENO, bytes, exit_code);
+        writeResult(std.posix.STDOUT_FILENO, "\n", exit_code);
     } else if (value.@"error") |err| {
-        writeAll(std.posix.STDERR_FILENO, err.code) catch std.process.exit(1);
-        writeAll(std.posix.STDERR_FILENO, ": ") catch std.process.exit(1);
-        writeAll(std.posix.STDERR_FILENO, err.message) catch std.process.exit(1);
-        writeAll(std.posix.STDERR_FILENO, "\n") catch std.process.exit(1);
+        writeResult(std.posix.STDERR_FILENO, err.code, exit_code);
+        writeResult(std.posix.STDERR_FILENO, ": ", exit_code);
+        writeResult(std.posix.STDERR_FILENO, err.message, exit_code);
+        writeResult(std.posix.STDERR_FILENO, "\n", exit_code);
     } else {
-        writeAll(std.posix.STDOUT_FILENO, value.summary) catch std.process.exit(1);
-        writeAll(std.posix.STDOUT_FILENO, "\n") catch std.process.exit(1);
+        writeResult(std.posix.STDOUT_FILENO, value.summary, exit_code);
+        writeResult(std.posix.STDOUT_FILENO, "\n", exit_code);
     }
     std.process.exit(exit_code);
 }
@@ -65,7 +81,7 @@ pub fn main() void {
         else => null,
     };
     if (text) |bytes| {
-        writeAll(std.posix.STDOUT_FILENO, bytes) catch std.process.exit(1);
+        writeAll(std.posix.STDOUT_FILENO, bytes, true) catch |err| outputFailure(err);
         return;
     }
     var value: result.Result = .{};

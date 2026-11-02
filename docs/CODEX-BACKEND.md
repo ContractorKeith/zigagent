@@ -104,6 +104,7 @@ Caller stdout is polled for hangup/error during prompt waits and every child
 workload. On closure the wrapper stops owned work and exits unsuccessfully
 without attempting a result. Result/help writes are nonblocking and each has
 a two-second deadline, including when a reader remains open but stops reading.
+SIGINT/SIGTERM during result delivery exits 130/143; output may be partial, and no second envelope is emitted. Cancellation handled during backend supervision still emits the cancelled result.
 Malformed newline-terminated events and oversized partial events stop live
 execution promptly; shorter partial events at EOF remain protocol errors.
 All backend streams continue draining concurrently during cleanup.

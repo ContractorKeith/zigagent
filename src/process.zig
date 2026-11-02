@@ -17,12 +17,15 @@ pub fn installSignals() void {
         posix.sigaction(sig, &.{ .handler = .{ .handler = onSignal }, .mask = posix.sigemptyset(), .flags = 0 }, null);
     posix.sigaction(posix.SIG.TTOU, &.{ .handler = .{ .handler = posix.SIG.IGN }, .mask = posix.sigemptyset(), .flags = 0 }, null);
 }
-pub fn checkCaller() !void {
+pub fn checkCancellation() !void {
     switch (cancellation.load(.monotonic)) {
         posix.SIG.INT => return error.Interrupted,
         posix.SIG.TERM => return error.Terminated,
         else => {},
     }
+}
+pub fn checkCaller() !void {
+    try checkCancellation();
     // Darwin registers no kqueue filter for an empty event mask.
     var fds = [_]posix.pollfd{.{ .fd = 1, .events = posix.POLL.OUT, .revents = 0 }};
     _ = try posix.poll(&fds, 0);
