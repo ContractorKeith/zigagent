@@ -61,8 +61,10 @@ class ContractTests(CliCase):
 
     def test_numeric_valid_bounds(self):
         for value in ("1", "86400"):
-            self.success(self.invoke("run", "--json", "--model", "m", "--timeout", value,
-                                      "--login-timeout", value, "hello"))
+            # Parsing boundaries must not require Python/backend startup within 1s.
+            self.envelope(self.invoke("run", "--json", "--model", "m", "--timeout", value,
+                                      "--login-timeout", value, "--codex", str(self.root / "absent"),
+                                      "hello"), 3, "backend_missing")
         for value in ("1", "16777216"):
             self.success(self.invoke("run", "--json", "--model", "m", "--output-limit", value,
                                       "--event-limit", "16777216", "hello"))
