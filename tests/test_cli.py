@@ -141,11 +141,13 @@ class ContractTests(CliCase):
         self.assertEqual(p.stderr, b"")
         self.success(self.invoke("run", "--json", "--model", "m", "--", "-prompt"))
 
-    def test_check_is_not_run(self):
-        v = self.envelope(self.invoke("run", "--model", "m", "--json", "--check", "touch SHOULD_NOT_EXIST", "hello"))
-        self.assertEqual(v["verification"]["status"], "not_run")
-        self.assertFalse((self.root / "SHOULD_NOT_EXIST").exists())
-        self.assertFalse(self.log.exists())
+    def test_check_runs_after_completion(self):
+        p = self.invoke("run", "--model", "m", "--json", "--workspace", str(self.workspace),
+                        "--check", "printf checked", "hello")
+        self.assertEqual(p.returncode, 0, p.stdout)
+        v = json.loads(p.stdout)
+        self.assertEqual(v["verification"], {"status": "passed", "exit_code": 0,
+                                              "output": "checked", "truncated": False})
 
     def test_execution_and_login_milestone_boundary(self):
         v = self.success(self.invoke("run", "--model", "m", "--json", "--codex", str(self.fake), "hello"))

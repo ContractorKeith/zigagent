@@ -1,6 +1,6 @@
 # zigagent — Build Plan
 
-Status: M0 CLI harness merged via PR #6 (2026-11-02). M1 merged via PR #7 at 30b6fae. M2 is delivered in this branch, pending parent review and both-host acceptance. M3 caller checks remain explicitly unimplemented; M4 release evidence remains. Authoritative scope: [supervisor spec](features/supervisor/SPEC.md). Interview decisions are saved in the central worklog. fx inspired the scriptable surface; mdkb supplied the process shape. Custom fx-like agent internals are deferred because v1 uses Codex subscription login.
+Status: M0, M1 and M2 are merged on main through da5da400922d9dc107a678fab4dd97529083e935. M3 caller checks and the scripting contract are delivered in this branch, pending parent review and both-host acceptance. M4 release evidence remains. Authoritative scope: [supervisor spec](features/supervisor/SPEC.md). Interview decisions are saved in the central worklog. fx inspired the scriptable surface; mdkb supplied the process shape. Custom fx-like agent internals are deferred because v1 uses Codex subscription login.
 
 ## Goal
 
@@ -40,7 +40,7 @@ All milestones are sequential, integration order M0 → M1 → M2 → M3 → M4.
 
 ## Acceptance
 
-`bash scripts/accept.sh` is the single worker/reviewer/CI gate. M2 runs formatting, unit tests, a native build and compiled-process black-box fixtures. The 23 M0 regression checks are retained with delivered run behavior replacing temporary unimplemented expectations; terminal login and bounded graceful cleanup are delivered; caller checks remain explicitly unimplemented. Every milestone extends the gate for its delivered behavior. Fake backend tests are isolated and do not authenticate, modify user configuration or use live models.
+`bash scripts/accept.sh` is the single worker/reviewer/CI gate. M3 runs formatting, unit tests, a native build and compiled-process black-box fixtures. The 23 M0 regression checks are retained with delivered run behavior replacing temporary unimplemented expectations; terminal login, bounded graceful cleanup and caller checks are delivered. Every milestone extends the gate for its delivered behavior. Fake backend tests are isolated and do not authenticate, modify user configuration or use live models.
 
 Release gate: full current acceptance, fresh artifact build/checksum validation, actual live subscription fix/check on both hosts, independent skeptical review on both hosts, findings fixed with tests, docs reconciled with implementation, clean pushed main, then v0.1.0 release archives with checksums. Measure wrapper RSS separately from backend/process-tree RSS; benchmark evidence must state the method and limitations. Unsupported backend versions are rejected until evidence widens the range.
 

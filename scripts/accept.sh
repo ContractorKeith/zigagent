@@ -13,4 +13,4 @@ zig fmt --check build.zig src
 zig build test --summary all
 zig build --summary all
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
-printf 'accept: M2 passed (caller checks remain unimplemented)\n'
+printf 'accept: M3 passed\n'

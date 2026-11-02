@@ -46,7 +46,7 @@ def main():
         if scenario == "login_hang":
             time.sleep(20)
         if scenario == "login_slow":
-            time.sleep(.8)
+            time.sleep(float(os.environ.get("ZIGAGENT_TEST_LOGIN_DELAY", ".8")))
         assert sys.stdin.readline().strip() == "confirm"
         Path(log + ".login").write_text("synthetic login completed")
         return 0
@@ -84,6 +84,19 @@ def main():
         Path(log + ".stdin").write_bytes(prompt)
         Path(log + ".env").write_text(json.dumps({key: key in os.environ for key in
                                                 ("OPENAI_API_KEY", "CODEX_API_KEY")}))
+    if scenario == "replace_workspace":
+        workspace = Path(args[args.index("--cd") + 1])
+        (workspace / "identity").write_text("original")
+        workspace.rename(workspace.with_name(workspace.name + "-moved"))
+        workspace.mkdir()
+        (workspace / "identity").write_text("replacement")
+    if scenario == "unlink_workspace_alias":
+        Path(args[args.index("--cd") + 1], "preserved-edit").write_text("keep edits")
+        Path(os.environ["ZIGAGENT_TEST_WORKSPACE_LINK"]).unlink()
+    if scenario in ("edit", "slow_edit"):
+        Path(args[args.index("--cd") + 1], "preserved-edit").write_text("keep edits")
+        if scenario == "slow_edit":
+            time.sleep(1)
     if scenario == "midrun_auth":
         Path(args[args.index("--cd") + 1], "preserved-edit").write_text("keep edits")
         event("error", message="authentication expired")

@@ -95,6 +95,15 @@ Version 1 result fields:
 - summary_truncated: boolean
 - backend: {name: "codex", version: string or null, model: string or null}
 
+For supplied checks, `not_run` means no check child was spawned. A check that
+started but timed out or was cancelled has verification `failed`, independently
+of the run's `timed_out`/`cancelled` status. `exit_code` records a normal check
+exit status when observed, otherwise null (including signal termination).
+Combined check output is the bounded tail of concurrently drained stdout/stderr
+in observed read order; simultaneous writes across separate pipes have no total
+ordering guarantee. Plain mode includes the requested verification status,
+observed exit status, retained output and a truncation marker.
+
 Success means the backend emitted a recognized completion and exited zero; when a check is supplied it also passed. Agent success without --check is completed with verification not_requested, never passed. Backend failure with a check is verification not_run. Missing/invalid completion, malformed JSON, oversized event, or nonzero backend exit cannot be success even if the agent text says it is. Tolerate unknown event types/extra fields within the tested protocol while preserving framing and limits. Bound partial lines, drain stdout/stderr concurrently, and keep serialized output bounded by retained buffer sizes. Truncated UTF-8 must remain valid; arbitrary diagnostics bytes must be safely encoded/replaced. If stdout closes, terminate owned workload and exit without pretending a result was delivered.
 
 Exit codes: 0 completed; 1 agent/backend/protocol/internal failure; 2 usage; 3 missing/incompatible backend or unsupported required capability; 4 authentication failure/required; 5 caller check failure; 124 timeout (including login timeout); 130 SIGINT cancellation; 143 SIGTERM cancellation. JSON errors follow the same envelope when --json was requested, including validation errors, except help/version, an unwritable stdout, or cancellation during result delivery. Cancellation during result delivery returns 130/143; output may be partial and no second envelope is emitted. Error codes distinguish usage_error, backend_missing, backend_incompatible, backend_capability, authentication_required, authentication_failed, backend_failed, protocol_error, event_too_large, check_failed, timed_out, cancelled and output_closed as applicable. A later milestone may refine codes only with schema/documentation/tests updated together before release.

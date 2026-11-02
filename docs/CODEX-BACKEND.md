@@ -1,4 +1,4 @@
-# Codex 0.166.0 backend contract (M2)
+# Codex 0.166.0 backend contract (M3)
 
 Evidence inspected on Linux x86_64, 2026-11-02: `codex --version` returned
 `codex-cli 0.166.0`; `codex --help`, `codex exec --help` and `codex features list`
@@ -111,5 +111,13 @@ All backend streams continue draining concurrently during cleanup.
 
 Execution gets a fresh full `--timeout` budget after authentication; login does
 not consume that budget. Failure preserves edits and never retries a mutating
-run. `--check` remains rejected before any backend starts until M3. Retained
-output is bounded; Codex memory, context and cost are not.
+run. An optional caller check starts only after valid completion and zero backend
+exit, under that same execution deadline. It invokes `/bin/sh -c COMMAND` in the
+original workspace directory, retained through an open directory handle, with
+EOF stdin and the caller's inherited environment;
+API-key removal applies only to Codex children. Only COMMAND is shell syntax.
+The same owned-group supervision cleans checks and their ordinary descendants.
+Check stdout/stderr are drained concurrently into one bounded tail in observed
+read order; separate pipes do not establish a total order between simultaneous
+writes. Check output stays separate from backend diagnostics. Retained output
+is bounded; Codex memory, context and cost are not.

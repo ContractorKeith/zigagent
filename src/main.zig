@@ -48,14 +48,31 @@ fn emit(allocator: std.mem.Allocator, value: result.Result, json: bool, exit_cod
         const bytes = std.json.Stringify.valueAlloc(allocator, value, .{}) catch std.process.exit(1);
         writeResult(std.posix.STDOUT_FILENO, bytes, exit_code);
         writeResult(std.posix.STDOUT_FILENO, "\n", exit_code);
-    } else if (value.@"error") |err| {
-        writeResult(std.posix.STDERR_FILENO, err.code, exit_code);
-        writeResult(std.posix.STDERR_FILENO, ": ", exit_code);
-        writeResult(std.posix.STDERR_FILENO, err.message, exit_code);
-        writeResult(std.posix.STDERR_FILENO, "\n", exit_code);
     } else {
-        writeResult(std.posix.STDOUT_FILENO, value.summary, exit_code);
-        writeResult(std.posix.STDOUT_FILENO, "\n", exit_code);
+        const fd: std.posix.fd_t = if (value.@"error" != null) std.posix.STDERR_FILENO else std.posix.STDOUT_FILENO;
+        if (value.@"error") |err| {
+            writeResult(fd, err.code, exit_code);
+            writeResult(fd, ": ", exit_code);
+            writeResult(fd, err.message, exit_code);
+            writeResult(fd, "\n", exit_code);
+        } else {
+            writeResult(fd, value.summary, exit_code);
+            writeResult(fd, "\n", exit_code);
+        }
+        if (value.verification.status != .not_requested) {
+            writeResult(fd, "verification: ", exit_code);
+            writeResult(fd, @tagName(value.verification.status), exit_code);
+            if (value.verification.exit_code) |code| {
+                const text = std.fmt.allocPrint(allocator, " (exit {d})", .{code}) catch std.process.exit(1);
+                writeResult(fd, text, exit_code);
+            }
+            writeResult(fd, "\n", exit_code);
+            if (value.verification.truncated) writeResult(fd, "[check output truncated]\n", exit_code);
+            if (value.verification.output.len != 0) {
+                writeResult(fd, value.verification.output, exit_code);
+                writeResult(fd, "\n", exit_code);
+            }
+        }
     }
     std.process.exit(exit_code);
 }
@@ -73,7 +90,9 @@ pub fn main() void {
     // Only this environment key configures zigagent. Help/version ignore it.
     const env_model = std.process.getEnvVarOwned(allocator, "ZIGAGENT_MODEL") catch null;
     const opts = cli.parse(allocator, args, env_model) catch {
-        emit(allocator, .{ .@"error" = .{ .code = "usage_error", .message = "Invalid arguments; use zigagent --help or zigagent run --help." } }, json, 2);
+        var invalid: result.Result = .{ .@"error" = .{ .code = "usage_error", .message = "Invalid arguments; use zigagent --help or zigagent run --help." } };
+        invalid.verification.status = if (cli.wantsCheck(args)) .not_run else .not_requested;
+        emit(allocator, invalid, json, 2);
     };
     const text: ?[]const u8 = switch (opts.command) {
         .help => cli.help,
