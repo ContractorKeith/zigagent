@@ -1,6 +1,6 @@
 # zigagent — Build Plan
 
-Status: planned, no implementation yet (2026-11-02). Authoritative scope: [supervisor spec](features/supervisor/SPEC.md). Interview decisions are saved in the central worklog. fx inspired the scriptable surface; mdkb supplied the process shape. Custom fx-like agent internals are deferred because v1 uses Codex subscription login.
+Status: M0 CLI harness implemented, pending review/merge (2026-11-02); M1–M4 remain. Authoritative scope: [supervisor spec](features/supervisor/SPEC.md). Interview decisions are saved in the central worklog. fx inspired the scriptable surface; mdkb supplied the process shape. Custom fx-like agent internals are deferred because v1 uses Codex subscription login.
 
 ## Goal
 
@@ -39,7 +39,7 @@ All milestones are sequential, integration order M0 → M1 → M2 → M3 → M4.
 
 ## Acceptance
 
-`bash scripts/accept.sh` is the single worker/reviewer/CI gate. Scaffold intentionally fails until M0 implements the gate; documentation checks do not imply application tests passed. Every milestone extends the gate for its delivered behavior. Fake backend tests are isolated and do not authenticate, modify user configuration or use live models.
+`bash scripts/accept.sh` is the single worker/reviewer/CI gate. M0 runs formatting, unit tests, a native build and compiled-process black-box fixtures; later behavior is explicitly unimplemented. Every milestone extends the gate for its delivered behavior. Fake backend tests are isolated and do not authenticate, modify user configuration or use live models.
 
 Release gate: full current acceptance, fresh artifact build/checksum validation, actual live subscription fix/check on both hosts, independent skeptical review on both hosts, findings fixed with tests, docs reconciled with implementation, clean pushed main, then v0.1.0 release archives with checksums. Measure wrapper RSS separately from backend/process-tree RSS; benchmark evidence must state the method and limitations. Unsupported backend versions are rejected until evidence widens the range.
 

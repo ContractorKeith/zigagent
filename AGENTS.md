@@ -3,11 +3,11 @@
 A Zig supervisor around an installed Codex CLI for small repository fixes. It uses the caller's ChatGPT subscription, normalizes results, bounds execution and retained output, and optionally verifies the result. V1 is complete only when the spec acceptance passes on Linux x86_64 and macOS arm64 and packaged artifacts pass the release gate.
 
 ## Status
-Planning scaffold — 2026-11-02. M0 has not started. No working binary yet.
+M0 CLI harness — 2026-11-02. Build, argument validation, result schema and fake-backend tests implemented. Execution/login explicitly fail as unimplemented; M1–M4 remain. No working supervisor release yet.
 
 ## Commands
 ```bash
-bash scripts/accept.sh   # canonical gate; initially reports missing implementation
+bash scripts/accept.sh   # canonical fmt/unit/build/black-box gate
 zig build
 zig build test
 ```

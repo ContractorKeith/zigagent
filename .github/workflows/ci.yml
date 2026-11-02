@@ -1,0 +1,27 @@
+name: acceptance
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  m0:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            architecture: x86_64
+          - os: macos-15
+            architecture: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Verify native host
+        run: test "$(uname -m)" = '${{ matrix.architecture }}'
+      - name: Install checksum-verified Zig 0.15.2
+        run: |
+          toolchain=$(bash scripts/install-zig.sh "$RUNNER_TEMP/zigagent-toolchains")
+          echo "$toolchain" >> "$GITHUB_PATH"
+      - name: Canonical acceptance gate
+        run: bash scripts/accept.sh
