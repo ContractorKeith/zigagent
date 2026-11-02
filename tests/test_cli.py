@@ -95,6 +95,32 @@ class ContractTests(CliCase):
         self.assertFalse((self.root / "ALSO_NOT").exists())
         self.assertFalse(self.log.exists())
 
+    def test_every_context_directory_is_validated(self):
+        context = self.root / "valid-context"
+        context.mkdir()
+        self.envelope(self.invoke("run", "--model", "m", "--json",
+                                  "--add-dir", str(context), "--add-dir",
+                                  str(self.root / "missing-context"), "hello"), 2, "usage_error")
+
+    def test_option_like_paths_use_explicit_relative_prefix(self):
+        context = self.root / "--context"
+        context.mkdir()
+        for flag in ("--workspace", "--add-dir"):
+            self.envelope(self.invoke("run", "--model", "m", "--json",
+                                      flag, "./--context", "hello"))
+            self.envelope(self.invoke("run", "--model", "m", "--json",
+                                      flag, "--context", "hello"), 2, "usage_error")
+
+    def test_subcommand_help_short_circuits_remaining_arguments(self):
+        for args in [("run", "--help", "--bogus"),
+                     ("run", "--help", "--model"),
+                     ("run", "--help", "--timeout", "0"),
+                     ("login", "--help", "--login-timeout", "86401")]:
+            p = self.invoke(*args)
+            self.assertEqual(p.returncode, 0)
+            self.assertIn(b"Usage:", p.stdout)
+            self.assertEqual(p.stderr, b"")
+
     def test_delimiter(self):
         p = self.invoke("run", "--model", "m", "--", "--json")
         self.assertEqual(p.returncode, 1)
