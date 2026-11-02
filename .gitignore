@@ -1,0 +1,6 @@
+.zig-cache/
+zig-out/
+.scratch/
+dist/
+*.core
+.DS_Store
