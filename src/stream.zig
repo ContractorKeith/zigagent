@@ -88,8 +88,12 @@ pub const Events = struct {
             return;
         }
         if (std.mem.eql(u8, kind.string, "turn.completed")) {
-            if (self.completed) self.protocol_error = true;
+            if (self.completed or !validUsage(field(parsed.value, "usage"))) self.protocol_error = true;
             self.completed = true;
+        } else if (self.completed and (std.mem.eql(u8, kind.string, "turn.started") or
+            std.mem.eql(u8, kind.string, "item.started") or std.mem.eql(u8, kind.string, "item.updated")))
+        {
+            self.protocol_error = true;
         } else if (std.mem.eql(u8, kind.string, "turn.failed") or std.mem.eql(u8, kind.string, "error")) {
             self.failed = true;
         } else if (std.mem.eql(u8, kind.string, "item.completed")) {
@@ -126,6 +130,19 @@ pub const Events = struct {
 
 fn field(value: std.json.Value, key: []const u8) ?std.json.Value {
     return if (value == .object) value.object.get(key) else null;
+}
+
+// Pinned Codex completion schema; cache writes are optional with a zero default.
+fn validUsage(value: ?std.json.Value) bool {
+    const usage = value orelse return false;
+    for ([_][]const u8{ "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens" }) |name| {
+        const count = field(usage, name) orelse return false;
+        if (count != .integer) return false;
+    }
+    if (field(usage, "cache_write_input_tokens")) |count| {
+        if (count != .integer) return false;
+    }
+    return true;
 }
 
 test "bounded retention and UTF-8 repair" {

@@ -44,7 +44,12 @@ pub fn run(a: std.mem.Allocator, opts: cli.Options, value: *Result) !u8 {
     diagnostics(value, &help);
     if (help.timed_out) return fail(value, "timed_out", "Backend capability probe deadline exceeded.", 124);
     for ([_][]const u8{ "--json", "--ephemeral", "--color", "--model", "--cd", "--add-dir", "--ignore-user-config", "--ignore-rules", "--dangerously-bypass-approvals-and-sandbox" }) |flag| {
-        if (!help.exit_zero or help.output.truncated or std.mem.indexOf(u8, help.output.slice(), flag) == null) return fail(value, "backend_capability", "Codex lacks a required controlled-execution capability.", 3);
+        var tokens = std.mem.tokenizeAny(u8, help.output.slice(), " \t\r\n,=");
+        var found = false;
+        while (tokens.next()) |token| {
+            if (std.mem.eql(u8, token, flag)) found = true;
+        }
+        if (!help.exit_zero or help.output.truncated or !found) return fail(value, "backend_capability", "Codex lacks a required controlled-execution capability.", 3);
     }
     var auth = try process.Capture.init(a, opts.output_limit);
     try process.run(a, &.{ opts.codex, "login", "status" }, null, &preflight, &auth);

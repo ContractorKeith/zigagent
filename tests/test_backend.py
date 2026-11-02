@@ -60,6 +60,15 @@ class BackendTests(CliCase):
         self.assert_failure("missing_capability", "backend_capability", 3)
         self.assertEqual(self.records(), [["--version"], ["exec", "--help"]])
 
+    def test_capability_names_require_exact_tokens(self):
+        self.assert_failure("capability_prefix", "backend_capability", 3)
+        self.assertEqual(self.records(), [["--version"], ["exec", "--help"]])
+
+    def test_completion_shape_and_terminal_order(self):
+        for scenario in ("bad_usage", "bad_usage_count", "missing_usage_count", "late_start", "late_tool"):
+            with self.subTest(scenario=scenario):
+                self.assert_failure(scenario, "protocol_error")
+
     def test_auth_variations(self):
         for scenario, error in (("logged_out", "authentication_required"),
                                 ("api_key", "authentication_failed"),

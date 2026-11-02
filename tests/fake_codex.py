@@ -30,9 +30,11 @@ def main():
     if args == ["exec", "--help"]:
         if scenario == "help_hang":
             time.sleep(20)
-        print("--json --ephemeral --color --model --cd --add-dir --ignore-user-config "
+        help_text = ("--json --ephemeral --color --model --cd --add-dir --ignore-user-config "
               "--ignore-rules --dangerously-bypass-approvals-and-sandbox"
               if scenario != "missing_capability" else "--json")
+        print(" ".join(flag + "-unsupported" for flag in help_text.split())
+              if scenario == "capability_prefix" else help_text)
         return 0
     if args == ["login", "status"]:
         if scenario == "auth_hang":
@@ -113,7 +115,18 @@ def main():
         if scenario == "bad_item":
             event("item.completed", item={"type": "agent_message", "text": 9})
         if scenario != "missing_completion":
-            event("turn.completed", usage={"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1})
+            usage = {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1, "reasoning_output_tokens": 0}
+            if scenario == "bad_usage":
+                usage = "wrong-type"
+            elif scenario == "bad_usage_count":
+                usage["input_tokens"] = "1"
+            elif scenario == "missing_usage_count":
+                del usage["output_tokens"]
+            event("turn.completed", usage=usage)
+        if scenario == "late_start":
+            event("turn.started")
+        if scenario == "late_tool":
+            event("item.started", item={"type": "command_execution", "status": "in_progress"})
         if scenario == "duplicate_completion":
             event("turn.completed")
         if scenario == "trailing_malformed":

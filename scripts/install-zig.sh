@@ -14,7 +14,8 @@ install_root=${1:-"$HOME/.local/share/zigagent-toolchains"}
 mkdir -p "$install_root"
 install_root=$(cd "$install_root" && pwd)
 archive="$install_root/zig-$platform-0.15.2.tar.xz"
-curl --fail --silent --show-error --location --max-time 1800 \
+curl --fail --silent --show-error --location --connect-timeout 30 --max-time 600 \
+  --retry 3 --retry-connrefused --retry-max-time 1800 \
   "https://ziglang.org/download/0.15.2/zig-$platform-0.15.2.tar.xz" -o "$archive"
 python3 - "$archive" "$checksum" <<'PY'
 import hashlib
