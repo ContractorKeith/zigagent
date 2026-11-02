@@ -10,4 +10,4 @@ zig fmt --check build.zig src
 zig build test --summary all
 zig build --summary all
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
-printf 'accept: M0 passed (execution remains unimplemented)\n'
+printf 'accept: M1 passed (interactive login/checks remain unimplemented)\n'

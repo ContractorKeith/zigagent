@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
-  m0:
+  acceptance:
     strategy:
       fail-fast: false
       matrix:

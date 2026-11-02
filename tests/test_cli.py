@@ -4,6 +4,17 @@ from harness import BINARY, CliCase
 
 
 class ContractTests(CliCase):
+    def success(self, completed):
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertEqual(completed.stderr, b"")
+        value = json.loads(completed.stdout)
+        self.assertEqual(completed.stdout.count(b"\n"), 1)
+        self.assertEqual(value["status"], "completed")
+        self.assertIsNone(value["error"])
+        self.assertEqual(value["backend"]["version"], "0.166.0")
+        self.assertEqual(value["verification"]["status"], "not_requested")
+        return value
+
     def test_help_and_version_without_backend(self):
         self.env["PATH"] = str(self.root)
         self.env["ZIGAGENT_MODEL"] = "\udcff"  # ignored by help/version
@@ -50,22 +61,22 @@ class ContractTests(CliCase):
 
     def test_numeric_valid_bounds(self):
         for value in ("1", "86400"):
-            self.envelope(self.invoke("run", "--json", "--model", "m", "--timeout", value,
+            self.success(self.invoke("run", "--json", "--model", "m", "--timeout", value,
                                       "--login-timeout", value, "hello"))
         for value in ("1", "16777216"):
-            self.envelope(self.invoke("run", "--json", "--model", "m", "--output-limit", value,
-                                      "--event-limit", value, "hello"))
+            self.success(self.invoke("run", "--json", "--model", "m", "--output-limit", value,
+                                      "--event-limit", "16777216", "hello"))
 
     def test_model_precedence_and_escaping(self):
         model = 'quoted"\\\n\t☃'
         self.env["ZIGAGENT_MODEL"] = "environment"
-        v = self.envelope(self.invoke("run", "--model", model, "--json", "hello"))
+        v = self.success(self.invoke("run", "--model", model, "--json", "hello"))
         self.assertEqual(v["backend"]["model"], model)
-        v = self.envelope(self.invoke("run", "--json", "hello"))
+        v = self.success(self.invoke("run", "--json", "hello"))
         self.assertEqual(v["backend"]["model"], "environment")
         self.env["ZIGAGENT_MODEL"] = ""
         self.envelope(self.invoke("run", "--json", "hello"), 2, "usage_error")
-        self.envelope(self.invoke("run", "--model", "override", "--json", "hello"))
+        self.success(self.invoke("run", "--model", "override", "--json", "hello"))
 
     def test_missing_model(self):
         self.envelope(self.invoke("run", "--json", "hello"), 2, "usage_error")
@@ -79,7 +90,7 @@ class ContractTests(CliCase):
     def test_paths(self):
         context = self.root / "context"
         context.mkdir()
-        self.envelope(self.invoke("run", "--model", "m", "--json", "--workspace", str(self.workspace),
+        self.success(self.invoke("run", "--model", "m", "--json", "--workspace", str(self.workspace),
                                   "--add-dir", str(context), "--add-dir", "context", "hello"))
         file = self.root / "file"
         file.write_text("fixture", encoding="utf-8")
@@ -90,10 +101,10 @@ class ContractTests(CliCase):
 
     def test_quoted_input_is_not_shell_syntax(self):
         prompt = 'write "two words"; touch SHOULD_NOT_EXIST; $(touch ALSO_NOT)\n☃'
-        self.envelope(self.invoke("run", "--model", "m", "--json", "--codex", str(self.fake), prompt))
+        self.success(self.invoke("run", "--model", "m", "--json", "--codex", str(self.fake), prompt))
         self.assertFalse((self.root / "SHOULD_NOT_EXIST").exists())
         self.assertFalse((self.root / "ALSO_NOT").exists())
-        self.assertFalse(self.log.exists())
+        self.assertEqual((self.root / "fake-argv.jsonl.stdin").read_text(), prompt)
 
     def test_every_context_directory_is_validated(self):
         context = self.root / "valid-context"
@@ -106,7 +117,7 @@ class ContractTests(CliCase):
         context = self.root / "--context"
         context.mkdir()
         for flag in ("--workspace", "--add-dir"):
-            self.envelope(self.invoke("run", "--model", "m", "--json",
+            self.success(self.invoke("run", "--model", "m", "--json",
                                       flag, "./--context", "hello"))
             self.envelope(self.invoke("run", "--model", "m", "--json",
                                       flag, "--context", "hello"), 2, "usage_error")
@@ -123,20 +134,22 @@ class ContractTests(CliCase):
 
     def test_delimiter(self):
         p = self.invoke("run", "--model", "m", "--", "--json")
-        self.assertEqual(p.returncode, 1)
-        self.assertEqual(p.stdout, b"")
-        self.assertIn(b"unimplemented", p.stderr)
-        self.envelope(self.invoke("run", "--json", "--model", "m", "--", "-prompt"))
+        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.stdout, b"synthetic completion\n")
+        self.assertEqual(p.stderr, b"")
+        self.success(self.invoke("run", "--json", "--model", "m", "--", "-prompt"))
 
     def test_check_is_not_run(self):
         v = self.envelope(self.invoke("run", "--model", "m", "--json", "--check", "touch SHOULD_NOT_EXIST", "hello"))
         self.assertEqual(v["verification"]["status"], "not_run")
         self.assertFalse((self.root / "SHOULD_NOT_EXIST").exists())
-
-    def test_execution_is_honestly_unimplemented(self):
-        v = self.envelope(self.invoke("run", "--model", "m", "--json", "--codex", str(self.fake), "hello"))
-        self.assertEqual(v["verification"]["status"], "not_requested")
         self.assertFalse(self.log.exists())
+
+    def test_execution_and_login_milestone_boundary(self):
+        v = self.success(self.invoke("run", "--model", "m", "--json", "--codex", str(self.fake), "hello"))
+        self.assertEqual(v["verification"]["status"], "not_requested")
+        self.assertTrue(self.log.exists())
+        self.log.unlink()
         p = self.invoke("login", "--no-input", "--login-timeout", "1")
         self.assertEqual(p.returncode, 1)
         self.assertEqual(p.stdout, b"")
@@ -152,16 +165,17 @@ class ContractTests(CliCase):
             else:
                 self.assertEqual(p.stdout, b"")
 
-    def test_stdin_selection_does_not_wait_in_m0(self):
+    def test_stdin_selection_is_bounded(self):
         for suffix in ((), ("-",), ("argument",)):
-            self.envelope(self.invoke("run", "--model", "m", "--json", *suffix, input=b"synthetic stdin"))
-        p = subprocess.Popen([str(BINARY), "run", "--model", "m", "--json"],
+            self.success(self.invoke("run", "--model", "m", "--json", *suffix, input=b"synthetic stdin"))
+        p = subprocess.Popen([str(BINARY), "run", "--model", "m", "--json", "--timeout", "1"],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              cwd=self.root, env=self.env)
         try:
-            # Keep stdin open without writing: M0 must still return promptly.
-            p.wait(timeout=5)
-            self.envelope(subprocess.CompletedProcess(p.args, p.returncode, p.stdout.read(), p.stderr.read()))
+            p.wait(timeout=4)
+            value = json.loads(p.stdout.read())
+            self.assertEqual(p.returncode, 124)
+            self.assertEqual(value["error"]["code"], "timed_out")
         finally:
             if p.poll() is None:
                 p.kill()
@@ -171,21 +185,21 @@ class ContractTests(CliCase):
             p.stderr.close()
 
     def test_output_limit_does_not_limit_model(self):
-        v = self.envelope(self.invoke("run", "--json", "--model", "long", "--output-limit", "1", "hello"))
+        v = self.success(self.invoke("run", "--json", "--model", "long", "--output-limit", "1", "hello"))
         self.assertEqual(v["backend"]["model"], "long")
 
     def test_plain_respects_no_color(self):
         self.env.update(NO_COLOR="1", TERM="dumb")
         p = self.invoke("run", "--model", "m", "hello")
-        self.assertEqual(p.returncode, 1)
-        self.assertEqual(p.stdout, b"")
-        self.assertNotIn(b"\x1b", p.stderr)
+        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.stdout, b"synthetic completion\n")
+        self.assertNotIn(b"\x1b", p.stdout + p.stderr)
 
     def test_fake_backend_seam(self):
-        # Exercise the fixture itself. M0 never invokes a backend from zigagent.
+        # Exercise the fixture directly as well as through zigagent.
         for args in [("--version",), ("login", "status"), ("exec", "quoted prompt")]:
             p = subprocess.run([str(self.fake), *args], env=self.env, cwd=self.root,
-                               capture_output=True, timeout=5)
+                               input=b"", capture_output=True, timeout=5)
             self.assertEqual(p.returncode, 0, p.stderr)
         records = [json.loads(line) for line in self.log.read_text().splitlines()]
         self.assertEqual(records, [["--version"], ["login", "status"], ["exec", "quoted prompt"]])

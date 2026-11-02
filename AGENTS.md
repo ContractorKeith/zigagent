@@ -3,7 +3,7 @@
 A Zig supervisor around an installed Codex CLI for small repository fixes. It uses the caller's ChatGPT subscription, normalizes results, bounds execution and retained output, and optionally verifies the result. V1 is complete only when the spec acceptance passes on Linux x86_64 and macOS arm64 and packaged artifacts pass the release gate.
 
 ## Status
-M0 CLI harness — 2026-11-02. Build, argument validation, result schema and fake-backend tests implemented. Execution/login explicitly fail as unimplemented; M1–M4 remain. No working supervisor release yet.
+M0 CLI harness merged via PR #6 — 2026-11-02. M1 implements controlled Codex execution, bounded preflight/input/streams and JSONL results; pending parent review and both-host CI. Interactive login/cancellation hardening (M2), caller checks (M3) and release evidence (M4) remain. No supervisor release yet.
 
 ## Commands
 ```bash
