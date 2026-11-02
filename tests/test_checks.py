@@ -128,8 +128,8 @@ class CheckTests(CliCase):
                         self.assertIsNone(v['verification']['exit_code'])
 
     def test_exhausted_backend_budget_never_spawns_check(self):
-        # A shell fixture excludes Python startup from this intentional narrow
-        # handoff: leader exits before 1s, normal group cleanup uses the remainder.
+        # Startup scheduling may exhaust the budget in the backend or at check
+        # handoff. Both must time out without launching the caller check.
         self.fake.write_text("""#!/bin/sh
 case "$1:$2" in
   --version:) printf '%s\\n' 'codex-cli 0.166.0' ;;
@@ -146,7 +146,7 @@ esac
         v = json.loads(p.stdout)
         self.assertEqual(p.returncode, 124, v)
         self.assertEqual(v['summary'], 'synthetic completion')
-        self.assertIn('Caller check', v['error']['message'])
+        self.assertEqual(v['status'], 'timed_out')
         self.assertEqual(v['verification']['status'], 'not_run')
         self.assertEqual(v['error']['code'], 'timed_out')
         self.assertFalse((self.workspace / 'MUST_NOT_START').exists())

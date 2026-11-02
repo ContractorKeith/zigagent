@@ -117,6 +117,13 @@ first made check setup fail with backend_failed/1. Reusing the canonical path
 already passed to Codex fixes the handoff and keeps both workloads in the same
 workspace. The new CLI assertion passes after the fix.
 
+Review follow-up (#20): the exhausted-budget assertion no longer requires a
+phase-specific human message. An 80 ms delayed `cat` fixture reproduced the
+macOS CI failure: the backend correctly timed out before the check handoff.
+The same probe passes with assertions on timeout status/exit, verification
+`not_run`, and the absent check marker. Scheduling determines the timeout phase;
+this test does not claim deterministic coverage of the handoff branch.
+
 
 Nine M3 test methods were also run against an unchanged M2 binary built from
 `git archive da5da400922d9dc107a678fab4dd97529083e935` in a disposable source
