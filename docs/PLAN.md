@@ -1,6 +1,6 @@
 # zigagent — Build Plan
 
-Status: M0–M3 are merged on main through 142a5312b1c2fb1d08fe6229d7b9512b5c275bc7. M4 is prepared on this branch, awaiting parent release gates; no release exists. Authoritative scope: [supervisor spec](features/supervisor/SPEC.md). Interview decisions are saved in the central worklog. fx inspired the scriptable surface; mdkb supplied the process shape. Custom fx-like agent internals are deferred because v1 uses Codex subscription login.
+Status: M0–M4 implementation and both-host native/live/skeptic checks are complete for 0.1.0. Final integration acceptance and tag/publication verification follow the release procedure. Authoritative scope: [supervisor spec](features/supervisor/SPEC.md). Interview decisions are saved in the central worklog. fx inspired the scriptable surface; mdkb supplied the process shape. Custom fx-like agent internals are deferred because v1 uses Codex subscription login.
 
 ## Goal
 

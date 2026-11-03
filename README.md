@@ -1,8 +1,8 @@
 # zigagent
 
-A small native Zig CLI being built to supervise an installed Codex for repository fixes.
+A small native Zig CLI that supervises an installed Codex for repository fixes.
 
-M0–M3 are merged on main. This branch prepares M4 release tooling and version **0.1.0**; no release or tag exists. Native Mac artifact, both-host live subscription and independent skeptic gates remain parent-owned. See [the plan](docs/PLAN.md) and [release checklist](docs/RELEASE.md).
+Version **0.1.0** implements the v1 supervisor. Native Linux and Mac acceptance, packaged-binary subscription checks, and independent release skeptic reviews have passed. See [the plan](docs/PLAN.md) and [release checklist](docs/RELEASE.md); published artifacts appear on [GitHub Releases](https://github.com/ContractorKeith/zigagent/releases).
 
 ## Install (after a release is published)
 

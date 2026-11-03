@@ -1,9 +1,13 @@
-# Release procedure (prepared, no published release)
+# Release procedure
 
-M0–M3 are merged; this M4 branch prepares version 0.1.0. `--version` is the
-candidate's intended tag version, not evidence of a published release. Parent
-owns integration, native Mac evidence, actual both-host live checks, independent
-review/stress and release skeptic reports. No tag may precede those gates.
+Version 0.1.0 completed both-host native acceptance, packaged-binary live checks, performance measurements and independent release skeptic verification at a1c5806. The final documentation-only revision preserves that tested source. Merge/integrated acceptance, tag workflow and published-asset validation are the remaining publication steps.
+
+## Verified release evidence
+
+- Linux x86_64: 7 Zig and 101 Python tests; real Codex 0.166.0 / gpt-6.1-sol scratch fix, caller and independent checks, unchanged Git HEAD. Packaged binary SHA256 `3d40eab6df7da98ca77752ede7e622d88d93e95acf9176752bff1a9c9b521dd6`.
+- Mac Studio arm64, macOS 26.6, Zig 0.15.2 / SDK 15.4: 7 Zig and 101 Python tests, both new regressions repeated three times, independent native probes and one successful packaged-binary live fix/check. Binary SHA256 `28b3ea1e415483625bb9fa07331e9438188c0271a2cf05694c48b9a1b1fba748`.
+- Fresh Linux and Mac skeptic reviews found terminal-order and gzip-trailer defects; both were reproduced, fixed with failing-then-passing tests, and independently cleared on both hosts. Linux recheck added 35 probes and mutation controls.
+- Both native wrapper performance budgets pass. These checks establish no older-macOS or full-stack memory claim. Central worklog report `reports/zigagent-m4-review-2026-11-02.md` retains exact commands, hashes, failures and follow-ups.
 
 ## Native artifact gate
 
@@ -115,4 +119,4 @@ Only then may the parent create `v0.1.0` at the approved commit. The release
 workflow rejects a tag/version mismatch, reruns the canonical gate natively,
 combines both archives and attaches them plus `SHA256SUMS` to the GitHub release.
 CI cannot establish live subscription compatibility or replace native skeptic
-review. This worker does not tag, publish, mark ready, watch or merge.
+review. The orchestrator owns tag, publication and final asset verification.

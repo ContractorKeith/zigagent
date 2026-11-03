@@ -3,7 +3,7 @@
 A Zig supervisor around an installed Codex CLI for small repository fixes. It uses the caller's ChatGPT subscription, normalizes results, bounds execution and retained output, and optionally verifies the result. V1 is complete only when the spec acceptance passes on Linux x86_64 and macOS arm64 and packaged artifacts pass the release gate.
 
 ## Status
-M0–M3 are merged on main through 142a5312b1c2fb1d08fe6229d7b9512b5c275bc7. M4 packaging, live-check and performance tooling are prepared on this branch, awaiting parent review and native/live/skeptic release gates. No supervisor release or tag exists.
+M0–M4 implementation and both-host native/live/skeptic validation are complete for 0.1.0. Integration acceptance and tag/publication verification remain the final shipping steps. See docs/RELEASE.md for evidence and release procedure.
 
 ## Commands
 ```bash

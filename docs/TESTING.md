@@ -69,12 +69,7 @@ partial event followed by stdout EOF while the backend stayed alive first hung;
 finishing JSONL framing on stdout EOF made it fail promptly as protocol_error.
 All tests exercise the public compiled-process seam; no private lifecycle mocks.
 
-M0–M3 are merged on main. Final M3 native Linux/macOS gates passed with 7 Zig
-units and 85 Python methods. M4 tooling is prepared on this branch; parent owns
-native Mac artifact validation, actual both-host live subscription checks,
-independent review and fresh release skeptic evidence. No task-bearing live
-Codex invocation was made by this worker.
-Fixture tests do not establish release readiness.
+M0–M4 native Linux/macOS gates passed with 7 Zig units and 101 Python methods. Both platforms also passed packaged-binary subscription fixes with independent caller checks and fresh release skeptic verification. Fixture tests alone do not establish release readiness; evidence is summarized in [release docs](RELEASE.md).
 
 Standards follow-up: result-delivery cancellation and stale-PID teardown tests both failed before fixes. Result writes now return 130/143 when cancelled; a partially emitted envelope is not followed by another. Test teardown never signals recorded backend IDs after reaping; synthetic survivors on a failed test self-exit within 20 seconds.
 
