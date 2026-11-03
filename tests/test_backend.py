@@ -69,6 +69,16 @@ class BackendTests(CliCase):
             with self.subTest(scenario=scenario):
                 self.assert_failure(scenario, "protocol_error")
 
+    def test_late_tool_completion_never_runs_check(self):
+        for scenario in ("late_command_completed", "late_file_completed"):
+            with self.subTest(scenario=scenario):
+                marker = self.root / "check-ran"
+                p, value = self.run_fake(scenario, "--check", "touch check-ran")
+                self.assertEqual(p.returncode, 1, value)
+                self.assertEqual(value["error"]["code"], "protocol_error")
+                self.assertEqual(value["verification"]["status"], "not_run")
+                self.assertFalse(marker.exists())
+
     def test_auth_variations(self):
         for scenario, error in (("logged_out", "authentication_required"),
                                 ("api_key", "authentication_failed"),

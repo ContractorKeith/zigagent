@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const version = "0.1.0-dev";
+pub const version = "0.1.0";
 pub const prompt_limit = 1024 * 1024;
 pub const Command = enum { help, version, run, login, run_help, login_help };
 pub const Options = struct {

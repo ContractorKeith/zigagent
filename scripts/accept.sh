@@ -9,8 +9,11 @@ if [[ "$(zig version)" != 0.15.2 ]]; then
   exit 1
 fi
 export ZIG_GLOBAL_CACHE_DIR="${ZIG_GLOBAL_CACHE_DIR:-$PWD/.zig-cache/global}"
-zig fmt --check build.zig src
+zig fmt --check build.zig src scripts/measure.zig
 zig build test --summary all
 zig build --summary all
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
-printf 'accept: M3 passed\n'
+export PYTHONDONTWRITEBYTECODE=1
+python3 scripts/package.py build
+zig build benchmark-tool --summary all
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+printf 'accept: M4 prepared gate passed\n'

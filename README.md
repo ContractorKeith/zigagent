@@ -1,14 +1,20 @@
 # zigagent
 
-A small native Zig CLI being built to supervise an installed Codex for repository fixes.
+A small native Zig CLI that supervises an installed Codex for repository fixes.
 
-M0–M2 are merged on main through `da5da400922d9dc107a678fab4dd97529083e935`. This branch delivers M3: optional caller checks, shared backend/check deadlines and the final scripting contract. Codex **0.166.0** and ChatGPT login are required. M3 parent review and both-host acceptance remain; packaging/live release evidence is M4. See [the plan](docs/PLAN.md).
+Version **0.1.0** implements the v1 supervisor. Native Linux and Mac acceptance, packaged-binary subscription checks, and independent release skeptic reviews have passed. See [the plan](docs/PLAN.md) and [release checklist](docs/RELEASE.md); published artifacts appear on [GitHub Releases](https://github.com/ContractorKeith/zigagent/releases).
+
+## Install (after a release is published)
+
+Choose `zigagent-0.1.0-linux-x86_64.tar.gz` (Linux glibc 2.28+) or `zigagent-0.1.0-macos-arm64.tar.gz`. Download that archive and `SHA256SUMS` from the same trusted release. Verify its SHA256 before extracting (`sha256sum` on Linux, `shasum -a 256` on macOS), inspect the expected contents in [release docs](docs/RELEASE.md), then copy its executable `zigagent` to a directory on PATH, such as `~/.local/bin`. Python and Zig are not runtime requirements; OS libc and external Codex are.
+
+Install official Codex separately, pinned to **0.166.0** (`>=0.166.0,<0.166.1`; no prereleases). For an existing Node/npm setup, `npm install -g @openai/codex@0.166.0`, then `codex --version`. Authenticate separately with official `codex login` and confirm `codex login status` reports ChatGPT. An eligible ChatGPT subscription and a model available to that account are required; zigagent does not provide Codex or model access. See [backend controls](docs/CODEX-BACKEND.md) for the tested invocation and configuration limits.
 
 ## Build and test
 
 On newer macOS SDKs, pinned Zig may need an installed compatible SDK selected for the build process; see [SDK setup](docs/TESTING.md#macos-sdk-compatibility). No system configuration change is needed.
 
-Requires Python 3 for tests/toolchain setup, Git for scratch-repository assertions, and Zig **0.15.2** for builds. The native binary has no Python dependency.
+Requires Python 3 for tests and release tooling, Git for scratch-repository assertions, and Zig **0.15.2** for builds. The native binary has no Python dependency.
 
 ```bash
 # Official archives, pinned SHA256, Linux x86_64 or macOS arm64:

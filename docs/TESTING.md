@@ -1,8 +1,8 @@
-# M3 testing
+# Testing
 
 ## macOS SDK compatibility
 
-Zig 0.15.2 cannot link its native build runner against the SDK 26.5 libSystem stubs on the Mac Studio (arm64e target matching). The installed SDK 15.4 was verified with M0: 6 unit and 23 black-box tests passed. M1 subsequently passed 7 unit and 44 black-box checks on both hosts; M2 passed native acceptance on both hosts; M3 native macOS acceptance remains parent-owned. `SDKROOT` alone does not change Zig's xcrun discovery, and `zig build --sysroot` does not select the build runner SDK.
+Zig 0.15.2 cannot link its native build runner against the SDK 26.5 libSystem stubs on the Mac Studio (arm64e target matching). The installed SDK 15.4 was verified with M0: 6 unit and 23 black-box tests passed. M1 subsequently passed 7 unit and 44 black-box checks on both hosts; M2 passed native acceptance on both hosts; M3 final native Linux/macOS acceptance passed (7 Zig units, 85 Python methods); M4 native Mac acceptance remains parent-owned. `SDKROOT` alone does not change Zig's xcrun discovery, and `zig build --sysroot` does not select the build runner SDK.
 
 Select an existing compatible SDK for this process only:
 
@@ -16,7 +16,7 @@ The helper temporarily overrides only `xcrun --sdk macosx --show-sdk-path`, dele
 
 ## Gate
 
-Run `bash scripts/accept.sh` with Zig 0.15.2 on PATH. The gate rejects other compiler versions, checks `zig fmt`, runs `zig build test`, builds `zig-out/bin/zigagent`, then runs Python unittest discovery against that binary. Build/cache output stays on disk in the checkout (`.zig-cache`, `zig-out`). Python is test-only. CI runs this exact command on native Ubuntu x86_64 and macOS arm64 hosts, with a checksum-verified official compiler. No model or credential access occurs.
+Run `bash scripts/accept.sh` with Zig 0.15.2 on PATH. The gate rejects other compiler versions, checks `zig fmt`, runs `zig build test`, builds `zig-out/bin/zigagent`, builds/validates the native ReleaseSmall archive, then runs Python unittest discovery against that release binary. Build/cache output stays on disk in the checkout (`.zig-cache`, `zig-out`). Python is maintainer tooling only. CI runs this exact command on native Ubuntu x86_64 and macOS arm64 hosts, with a checksum-verified official compiler. No model or credential access occurs.
 
 The local Linux compiler executable installed for M0 is:
 
@@ -33,7 +33,7 @@ The local Linux compiler executable installed for M0 is:
 
 `tests/harness.py` makes a disposable directory for every test and captures stdout/stderr with a finite subprocess timeout. A fake `codex` is first on that test's PATH; explicit `--codex` also exercises a path containing spaces. No test changes HOME/CODEX_HOME, reads credentials, or calls a real model. Small fixture/log files live in the disposable directory. Compiler caches remain on disk in the checkout. Linux defaults to glibc 2.28 through Zig's bundled libc support: this avoids pinned Zig's inability to link the newer Arch host CRT `.sframe` relocations. The binary links OS libc; macOS uses its normal target.
 
-The gate runs **7 Zig unit tests and 85 Python black-box tests**. All 23 original M0 checks remain, adapting temporary unimplemented run/stdin expectations to delivered behavior. Twenty-one new backend checks cover strict versions and failed/missing probes; capability checks; ChatGPT/API-key/logged-out/unexpected authentication; literal argv/path/model data; exact stdin forwarding and early closure rejection; unchanged synthetic config; API-key environment removal; 1 MiB prompt boundaries; terminal rejection; completion plus zero exit; malformed/partial/invalid UTF-8/oversized events; unknown events; terminal failures and recovered tool attempts; nonfatal warning items; completion usage shape and terminal ordering; exact capability tokens; duplicate completion; nonzero exit; concurrent saturation and bounded UTF-8-safe output. Deadline fixtures cover open prompt pipes, hanging version/help/auth/execution, closed output pipes with a live leader, and inherited descendant pipes.
+The merged M3 gate ran **7 Zig unit tests and 85 Python black-box tests**; M4 extends this below. All 23 original M0 checks remain, adapting temporary unimplemented run/stdin expectations to delivered behavior. Twenty-one new backend checks cover strict versions and failed/missing probes; capability checks; ChatGPT/API-key/logged-out/unexpected authentication; literal argv/path/model data; exact stdin forwarding and early closure rejection; unchanged synthetic config; API-key environment removal; 1 MiB prompt boundaries; terminal rejection; completion plus zero exit; malformed/partial/invalid UTF-8/oversized events; unknown events; terminal failures and recovered tool attempts; nonfatal warning items; completion usage shape and terminal ordering; exact capability tokens; duplicate completion; nonzero exit; concurrent saturation and bounded UTF-8-safe output. Deadline fixtures cover open prompt pipes, hanging version/help/auth/execution, closed output pipes with a live leader, and inherited descendant pipes.
 
 `tests/fake_codex.py` uses only synthetic data. `ZIGAGENT_TEST_LOG`, `ZIGAGENT_TEST_SCENARIO` and `ZIGAGENT_TEST_VERSION` configure that fixture, never the shipped app. The argv/config test snapshots a disposable project's synthetic `.codex/config.toml` and checks exact suppression flags; it makes no claim to prove the actual Codex implementation's config behavior. Installed 0.166.0 help/features/login-status inspection and official documentation establish supported controls; fake events provide wrapper evidence, not live task compatibility evidence.
 
@@ -69,14 +69,7 @@ partial event followed by stdout EOF while the backend stayed alive first hung;
 finishing JSONL framing on stdout EOF made it fail promptly as protocol_error.
 All tests exercise the public compiled-process seam; no private lifecycle mocks.
 
-M2 Linux and native macOS acceptance passed before merge. An M3
-aarch64-macos cross-build establishes compilation only; native macOS execution,
-both-host CI, parent full-diff review, independent review and fresh attack
-remain M3 integration gates. No real login or task-bearing
-Codex call was made. M0–M2 are merged on main; M3 caller checks are delivered in this branch.
-M3 native macOS execution and remote CI remain parent-owned; packaging/live
-release evidence is M4.
-Fixture tests do not establish release readiness.
+M0–M4 native Linux/macOS gates passed with 7 Zig units and 101 Python methods. Both platforms also passed packaged-binary subscription fixes with independent caller checks and fresh release skeptic verification. Fixture tests alone do not establish release readiness; evidence is summarized in [release docs](RELEASE.md).
 
 Standards follow-up: result-delivery cancellation and stale-PID teardown tests both failed before fixes. Result writes now return 130/143 when cancelled; a partially emitted envelope is not followed by another. Test teardown never signals recorded backend IDs after reaping; synthetic survivors on a failed test self-exit within 20 seconds.
 
@@ -109,8 +102,7 @@ returned check_failed/5 before Codex-only filtering was separated from caller
 check inheritance. The usage/check matrix initially reported not_requested on
 invalid numeric arguments; it now retains not_run for a requested check.
 All evidence uses the compiled public CLI. No real authentication or model call
-was performed. Linux acceptance is recorded in this branch's draft PR; parent
-owns native Mac/remote validation, independent review and adversarial testing.
+was performed. M3 native acceptance passed before merge; its review history is retained in the merged PR.
 
 Self-review regression: removing a workspace symlink during the fake agent run
 first made check setup fail with backend_failed/1. Reusing the canonical path
@@ -170,3 +162,58 @@ with tempfile.TemporaryDirectory(prefix="zigagent-example-") as scratch:
     ], env=env, check=True)
 PYTHON
 ```
+
+## M4 tooling
+
+The canonical gate now includes native ReleaseSmall packaging and 15 tooling
+methods (101 Python methods total). Artifact tests recompute checksums when
+attacking content, so they exercise content validation beyond checksum mismatch.
+They reject truncated/missing/extra/wrong artifacts, invalid manifests, traversal,
+symlinks, duplicate/missing members, modes, executable format and version.
+Live-runner tests force the bundled fake, verify actual file change and both
+checks, prove explicit opt-in, preserve failed scratch and suppress raw output.
+The benchmark smoke check invokes only help/version.
+
+```bash
+python3 scripts/package.py build
+python3 scripts/package.py validate
+zig build benchmark-tool
+python3 -m unittest discover -s tests -p 'test_tooling.py' -v
+python3 scripts/live-check.py --test-mode --model test-model --cleanup-success
+python3 scripts/benchmark.py --samples 50
+```
+
+See [release procedure](RELEASE.md) for native roundtrips, optional parent-only
+live invocation and missing gates; [performance](PERFORMANCE.md) records method,
+actual Linux values and measurement limits. Ordinary CI has no network/model
+calls beyond installing the pinned compiler and uploading artifacts. No fixtures
+read real credentials or configuration. Prepared runners do not prove release
+readiness or real model compatibility.
+
+M4 self-review regression: a synthetic inherited GIT_DIR/GIT_WORK_TREE redirected
+fixture Git operations and made the new override test fail before the fix.
+The runner now strips inherited GIT_* values and disables global/system Git
+configuration for its child environment, so only its newly created repo is used.
+The regression passes; it never points at a real user repository.
+
+Review finding #24: Python optimization removed the generated checker's
+assertions, letting multiplication pass as addition. A copied fake backend
+reproduced this false success under PYTHONOPTIMIZE=1. Explicit conditional
+failures now reject the wrong edit in both caller and independent checks,
+regardless of optimization.
+
+Review findings #25–26: malformed nested check-output values now produce generic
+JSON failure evidence instead of a traceback. Generated archives and manifests
+replace their directory entries atomically, leaving existing symlink targets
+untouched. Regression fixtures first reproduced both failures.
+
+Native follow-up #27: normal descendant cleanup now waits for fixture readiness
+before its three-second cleanup allowance. A 0.8-second delay at each backend
+startup reproduced all three old whole-run timeout failures; the new test
+includes this delay and retains descendant/unrelated-process assertions.
+The original Mac timeout's precise cause was not established independently.
+
+Release skeptic regressions reject completed tool/file items after terminal
+completion and prove the caller check never starts. Archive validation drains
+the bounded gzip stream, rejecting missing trailers and CRC damage even with
+a matching recomputed checksum. Both regressions failed before their fixes.

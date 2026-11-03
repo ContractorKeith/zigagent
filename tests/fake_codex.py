@@ -84,6 +84,9 @@ def main():
         Path(log + ".stdin").write_bytes(prompt)
         Path(log + ".env").write_text(json.dumps({key: key in os.environ for key in
                                                 ("OPENAI_API_KEY", "CODEX_API_KEY")}))
+    if scenario == "live_fix":
+        Path(args[args.index("--cd") + 1], "calculator.py").write_text(
+            "def add(a, b):\n    return a + b\n")
     if scenario == "replace_workspace":
         workspace = Path(args[args.index("--cd") + 1])
         (workspace / "identity").write_text("original")
@@ -192,6 +195,8 @@ def main():
             event("turn.started")
         if scenario == "late_tool":
             event("item.started", item={"type": "command_execution", "status": "in_progress"})
+        if scenario in ("late_command_completed", "late_file_completed"):
+            event("item.completed", item={"type": "command_execution" if scenario == "late_command_completed" else "file_change", "status": "failed", "exit_code": 17})
         if scenario == "duplicate_completion":
             event("turn.completed")
         if scenario == "trailing_malformed":

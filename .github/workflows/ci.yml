@@ -25,3 +25,11 @@ jobs:
           echo "$toolchain" >> "$GITHUB_PATH"
       - name: Canonical acceptance gate
         run: bash scripts/accept.sh
+      - name: Wrapper baseline (measured native budgets)
+        run: python3 scripts/benchmark.py --samples 50 --enforce
+      - name: Retain validated native release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-${{ matrix.architecture }}-${{ runner.os }}
+          path: dist/*
+          if-no-files-found: error
