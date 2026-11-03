@@ -91,7 +91,8 @@ pub const Events = struct {
             if (self.completed or !validUsage(field(parsed.value, "usage"))) self.protocol_error = true;
             self.completed = true;
         } else if (self.completed and (std.mem.eql(u8, kind.string, "turn.started") or
-            std.mem.eql(u8, kind.string, "item.started") or std.mem.eql(u8, kind.string, "item.updated")))
+            std.mem.eql(u8, kind.string, "item.started") or std.mem.eql(u8, kind.string, "item.updated") or
+            std.mem.eql(u8, kind.string, "item.completed")))
         {
             self.protocol_error = true;
         } else if (std.mem.eql(u8, kind.string, "turn.failed") or std.mem.eql(u8, kind.string, "error")) {

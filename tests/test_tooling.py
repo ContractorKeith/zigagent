@@ -58,6 +58,17 @@ class PackagingTests(unittest.TestCase):
         archive.unlink()
         self.validate()
 
+    def test_gzip_trailer_is_validated_with_matching_checksum(self):
+        archive = self.directory / self.name
+        original = archive.read_bytes()
+        variants = [original[:-n] for n in (1, 8, 20)]
+        variants.append(original[:-8] + bytes([original[-8] ^ 1]) + original[-7:])
+        for data in variants:
+            with self.subTest(size=len(data)):
+                archive.write_bytes(data)
+                self.manifest()
+                self.validate()
+
     def test_manifest_rejects_wrong_missing_duplicate_and_unsafe_names(self):
         path = self.directory / "SHA256SUMS"
         original = path.read_text()

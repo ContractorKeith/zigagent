@@ -89,6 +89,14 @@ def validate(directory, targets):
         archive = directory / name
         if archive.is_symlink() or sha256(archive) != entries[name]:
             raise ValueError("archive checksum mismatch or symlink")
+        # Tar stops at its end marker; drain gzip separately to validate its trailer.
+        # Bound expansion even for malformed archives with large trailing payloads.
+        with gzip.open(archive, "rb") as compressed:
+            expanded = 0
+            for chunk in iter(lambda: compressed.read(1024 * 1024), b""):
+                expanded += len(chunk)
+                if expanded > len(FILES) * MAX_MEMBER + 1024 * 1024:
+                    raise ValueError("archive expansion exceeds member budget")
         prefix = name.removesuffix(".tar.gz")
         with tarfile.open(archive, "r:gz") as tar:
             members = tar.getmembers()

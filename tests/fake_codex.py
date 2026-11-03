@@ -195,6 +195,8 @@ def main():
             event("turn.started")
         if scenario == "late_tool":
             event("item.started", item={"type": "command_execution", "status": "in_progress"})
+        if scenario in ("late_command_completed", "late_file_completed"):
+            event("item.completed", item={"type": "command_execution" if scenario == "late_command_completed" else "file_change", "status": "failed", "exit_code": 17})
         if scenario == "duplicate_completion":
             event("turn.completed")
         if scenario == "trailing_malformed":
